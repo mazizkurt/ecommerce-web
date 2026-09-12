@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
-import { ExternalLink } from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConfirmForm } from "@/components/admin/form-client";
 import { ProductForm } from "@/components/admin/product-form";
 import { btnSecondary, PageHeader } from "@/components/admin/ui";
-import { deleteProduct } from "@/lib/actions/admin";
+import { deleteProduct, duplicateProduct } from "@/lib/actions/admin";
+import { requireAdmin } from "@/lib/auth";
 import { flattenCategories } from "@/lib/category-utils";
 import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
@@ -16,6 +17,7 @@ import { getSettings, pricingFrom } from "@/lib/settings";
 export const metadata: Metadata = { title: "Ürünü Düzenle" };
 
 export default async function EditProductPage({ params, searchParams }: PageProps<"/admin/urunler/[id]">) {
+  await requireAdmin();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const [product, categories, settings] = await Promise.all([
     db.query.products.findFirst({
@@ -36,12 +38,24 @@ export default async function EditProductPage({ params, searchParams }: PageProp
       <PageHeader
         title={product.name}
         back={{ href: "/admin/urunler", label: "Ürünler" }}
-        description={sp.kaydedildi ? "Ürün oluşturuldu." : undefined}
+        description={
+          sp.kaydedildi
+            ? "Ürün oluşturuldu."
+            : sp.kopyalandi
+              ? "Kopya oluşturuldu: satış dışı ve stoksuz başladı. Adını, rengini, görsellerini ve stoklarını güncelleyip satışa açın."
+              : undefined
+        }
         actions={
           <>
             <Link href={`/urun/${product.slug}`} target="_blank" className={btnSecondary}>
               <ExternalLink className="size-4" /> Mağazada gör
             </Link>
+            <form action={duplicateProduct}>
+              <input type="hidden" name="id" value={product.id} />
+              <button type="submit" className={btnSecondary}>
+                <Copy className="size-4" /> Kopyala (yeni renk)
+              </button>
+            </form>
             <ConfirmForm
               action={deleteProduct}
               id={product.id}
@@ -68,6 +82,11 @@ export default async function EditProductPage({ params, searchParams }: PageProp
           isActive: product.isActive,
           isNew: product.isNew,
           isTrend: product.isTrend,
+          colorName: product.colorName,
+          colorHex: product.colorHex,
+          groupCode: product.groupCode,
+          metaTitle: product.metaTitle,
+          metaDescription: product.metaDescription,
           images: product.images.map((i) => i.url),
           variants: product.variants.map(({ id, size, stock }) => ({ id, size, stock })),
         }}

@@ -3,15 +3,22 @@
 import { Children, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 
-export function HeroSlider({ children }: { children: React.ReactNode }) {
+export function HeroSlider({
+  children,
+  intervalSeconds = 6,
+}: {
+  children: React.ReactNode;
+  intervalSeconds?: number;
+}) {
   const slides = Children.toArray(children);
   const [index, setIndex] = useState(0);
+  const ms = Math.max(2, intervalSeconds) * 1000;
 
   useEffect(() => {
     if (slides.length < 2) return;
-    const id = setInterval(() => setIndex((i) => (i + 1) % slides.length), 6000);
+    const id = setInterval(() => setIndex((i) => (i + 1) % slides.length), ms);
     return () => clearInterval(id);
-  }, [slides.length, index]);
+  }, [slides.length, index, ms]);
 
   return (
     <section

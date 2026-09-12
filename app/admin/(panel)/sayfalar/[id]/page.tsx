@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -12,6 +13,7 @@ import { pages } from "@/lib/db/schema";
 export const metadata: Metadata = { title: "Sayfa Düzenle" };
 
 export default async function EditPagePage({ params }: PageProps<"/admin/sayfalar/[id]">) {
+  await requireAdmin();
   const { id } = await params;
   const [page] = await db.select().from(pages).where(eq(pages.id, Number(id) || 0)).limit(1);
   if (!page) notFound();

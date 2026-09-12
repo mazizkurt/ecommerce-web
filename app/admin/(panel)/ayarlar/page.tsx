@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
-import { PasswordForm, SettingsForm } from "@/components/admin/forms";
-import { Card, PageHeader } from "@/components/admin/ui";
-import { getSettings } from "@/lib/settings";
+import { GeneralSettingsForm } from "@/components/admin/settings-forms";
+import { requireAdmin } from "@/lib/auth";
+import { getSettings, redactSettings } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "Ayarlar" };
+export const metadata: Metadata = { title: "Genel Ayarlar" };
 
-export default async function SettingsPage() {
-  const settings = await getSettings();
-  return (
-    <>
-      <PageHeader title="Ayarlar" description="Mağaza bilgileri, kargo, ödeme ve iletişim ayarları." />
-      <SettingsForm settings={settings} />
-      <Card title="Yönetici şifresi" className="mt-10">
-        <PasswordForm />
-      </Card>
-    </>
-  );
+export default async function GeneralSettingsPage() {
+  await requireAdmin();
+  const { settings } = redactSettings(await getSettings());
+  return <GeneralSettingsForm settings={settings} />;
 }

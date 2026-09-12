@@ -7,25 +7,24 @@ import { formatDate, maskName } from "@/lib/format";
 import {
   categoryTrail,
   getAllCategories,
+  getColorSiblings,
   getProductBySlug,
   getProductReviews,
   getProducts,
   type ProductCardData,
 } from "@/lib/queries";
-import { getSettings, pricingFrom } from "@/lib/settings";
+import { getSettings, pricingFrom, siteUrlFrom } from "@/lib/settings";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
-export async function generateMetadata({
-  params,
-}: PageProps<"/urun/[slug]">): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps<"/urun/[slug]">): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) return { title: "Ürün bulunamadı" };
+  const description = product.metaDescription || product.description.slice(0, 160);
   return {
-    title: product.name,
-    description: product.description.slice(0, 160),
-    openGraph: { images: product.images.slice(0, 1).map((i) => i.url) },
+    title: product.metaTitle || product.name,
+    description,
+    alternates: { canonical: `/urun/${product.slug}` },
+    openGraph: { title: product.metaTitle || product.name, description, images: product.images.slice(0, 1).map((i) => i.url) },
   };
 }
 
@@ -34,18 +33,18 @@ export default async function ProductPage({ params }: PageProps<"/urun/[slug]">)
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [settings, categories, reviews, related] = await Promise.all([
+  const [settings, categories, reviews, related, siblings] = await Promise.all([
     getSettings(),
     getAllCategories(),
     getProductReviews(product.id),
     product.categoryId
       ? getProducts({ categoryIds: [product.categoryId], excludeId: product.id, perPage: 10 })
       : Promise.resolve({ items: [] as ProductCardData[] }),
+    getColorSiblings(product.groupCode),
   ]);
+  const siteUrl = siteUrlFrom(settings);
   const trail = categoryTrail(categories, product.categoryId);
-  const rating = reviews.length
-    ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
-    : 0;
+  const rating = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
   const card: ProductCardData = {
     id: product.id,
     name: product.name,
@@ -62,8 +61,9 @@ export default async function ProductPage({ params }: PageProps<"/urun/[slug]">)
     "@type": "Product",
     name: product.name,
     sku: product.code || undefined,
-    image: card.images,
-    description: product.description,
+    image: card.images.map((i) => (i.startsWith("http") ? i : `${siteUrl}${i}`)),
+    description: product.metaDescription || product.description,
+    ...(product.colorName && { color: product.colorName }),
     offers: {
       "@type": "Offer",
       priceCurrency: "TRY",
@@ -104,7 +104,16 @@ export default async function ProductPage({ params }: PageProps<"/urun/[slug]">)
             rating={rating}
             reviewCount={reviews.length}
             whatsapp={settings.whatsapp}
+            whatsappMessage={settings.whatsappMessage}
             siteUrl={siteUrl}
+            colorName={product.colorName}
+            colors={siblings.map((s) => ({
+              slug: s.slug,
+              colorName: s.colorName || "Renk",
+              colorHex: s.colorHex,
+              image: s.image,
+              current: s.id === product.id,
+            }))}
           />
           <details className="group mt-6" open>
             <summary className="flex cursor-pointer list-none items-center gap-3 bg-[#f5f5f5] px-4 py-3 text-sm">

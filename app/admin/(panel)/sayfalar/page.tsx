@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { asc } from "drizzle-orm";
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
@@ -10,6 +11,7 @@ import { pages } from "@/lib/db/schema";
 export const metadata: Metadata = { title: "Sayfalar" };
 
 export default async function PagesPage() {
+  await requireAdmin();
   const rows = await db.select().from(pages).orderBy(asc(pages.sortOrder), asc(pages.id));
   return (
     <>

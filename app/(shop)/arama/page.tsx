@@ -6,8 +6,8 @@ import { getAllCategories, getProducts, getSizesForCategories } from "@/lib/quer
 import { getSettings, pricingFrom } from "@/lib/settings";
 
 const LISTS = {
-  yeni: { title: "Yeni Ürünler", filter: { isNew: true } },
-  indirim: { title: "İndirim Trendleri", filter: { isTrend: true } },
+  yeni: { titleKey: "newTitle", filter: { isNew: true } },
+  indirim: { titleKey: "trendTitle", filter: { isTrend: true } },
 } as const;
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
@@ -15,10 +15,10 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 export async function generateMetadata({
   searchParams,
 }: PageProps<"/arama">): Promise<Metadata> {
-  const sp = await searchParams;
+  const [sp, settings] = await Promise.all([searchParams, getSettings()]);
   const list = LISTS[one(sp.liste) as keyof typeof LISTS];
   const q = one(sp.q).trim();
-  return { title: list?.title ?? (q ? `"${q}" araması` : "Tüm Ürünler") };
+  return { title: list ? settings[list.titleKey] : q ? `"${q}" araması` : "Tüm Ürünler" };
 }
 
 export default async function SearchPage({ searchParams }: PageProps<"/arama">) {
@@ -39,7 +39,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/arama">) 
     getAllCategories(),
   ]);
   const sizes = await getSizesForCategories(categories.map((c) => c.id));
-  const title = list?.title ?? (q ? `"${q}" için arama sonuçları` : "Tüm Ürünler");
+  const title = list ? settings[list.titleKey] : q ? `"${q}" için arama sonuçları` : "Tüm Ürünler";
 
   const baseParams: Record<string, string> = {};
   if (q) baseParams.q = q;

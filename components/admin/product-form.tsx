@@ -7,6 +7,7 @@ import type { FlatCategory } from "@/lib/category-utils";
 import { COMMON_SIZES } from "@/lib/constants";
 import { formatPrice, kurusToInput, parsePrice } from "@/lib/format";
 import { cartPrice } from "@/lib/pricing";
+import { ColorField } from "./color-field";
 import { FormMessage, SubmitButton, useAdminAction } from "./form-client";
 import { ImageUploader } from "./image-uploader";
 import { btnSecondary, Card, Field, inputCls, textareaCls, Toggle } from "./ui";
@@ -24,6 +25,11 @@ export type ProductFormData = {
   isActive: boolean;
   isNew: boolean;
   isTrend: boolean;
+  colorName: string;
+  colorHex: string;
+  groupCode: string;
+  metaTitle: string;
+  metaDescription: string;
   images: string[];
   variants: { id: number; size: string; stock: number }[];
 };
@@ -139,6 +145,34 @@ export function ProductForm({
             >
               Standart beden
             </button>
+          </div>
+        </Card>
+
+        <Card
+          title="Renk ve model grubu"
+          description="Aynı modelin farklı renkleri ayrı ürün olarak eklenir; aynı grup kodunu verdiğiniz ürünler ürün sayfasında renk seçenekleri olarak birbirine bağlanır."
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Renk adı" error={e.colorName}>
+              <input name="colorName" defaultValue={product?.colorName} placeholder="Ekru" className={inputCls} />
+            </Field>
+            <Field label="Renk kodu" hint="Boşsa ürün görseli gösterilir." error={e.colorHex}>
+              <ColorField name="colorHex" defaultValue={product?.colorHex ?? ""} allowEmpty />
+            </Field>
+            <Field label="Model grup kodu" hint="Örn. SELANI-KAZAK" error={e.groupCode}>
+              <input name="groupCode" defaultValue={product?.groupCode} className={inputCls} />
+            </Field>
+          </div>
+        </Card>
+
+        <Card title="Arama motoru (SEO)" description="Boş bırakılırsa ürün adı ve açıklaması kullanılır.">
+          <div className="grid gap-4">
+            <Field label="SEO başlığı" error={e.metaTitle}>
+              <input name="metaTitle" defaultValue={product?.metaTitle} maxLength={120} className={inputCls} />
+            </Field>
+            <Field label="SEO açıklaması" hint="150-160 karakter idealdir." error={e.metaDescription}>
+              <textarea name="metaDescription" rows={2} maxLength={320} defaultValue={product?.metaDescription} className={textareaCls} />
+            </Field>
           </div>
         </Card>
       </div>

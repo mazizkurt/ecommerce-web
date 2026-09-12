@@ -2,6 +2,7 @@
 
 import {
   ClipboardList,
+  CreditCard,
   ExternalLink,
   FileText,
   Folder,
@@ -13,6 +14,7 @@ import {
   MessageSquare,
   Package,
   Settings,
+  Ticket,
   Users,
   X,
 } from "lucide-react";
@@ -29,11 +31,13 @@ const NAV = [
   { href: "/admin/siparisler", label: "Siparişler", icon: ClipboardList, count: "pendingOrders" },
   { href: "/admin/urunler", label: "Ürünler", icon: Package },
   { href: "/admin/kategoriler", label: "Kategoriler", icon: Folder },
+  { href: "/admin/kuponlar", label: "Kuponlar", icon: Ticket },
   { href: "/admin/bannerlar", label: "Bannerlar", icon: ImageIcon },
   { href: "/admin/yorumlar", label: "Yorumlar", icon: MessageSquare, count: "pendingReviews" },
   { href: "/admin/sayfalar", label: "Sayfalar", icon: FileText },
   { href: "/admin/musteriler", label: "Müşteriler", icon: Users },
   { href: "/admin/aboneler", label: "Bülten Aboneleri", icon: Mail },
+  { href: "/admin/odeme", label: "Ödeme Yöntemleri", icon: CreditCard },
   { href: "/admin/ayarlar", label: "Ayarlar", icon: Settings },
 ] as const;
 

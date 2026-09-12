@@ -4,9 +4,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { WhatsAppIcon } from "@/components/icons";
+import { ConfirmForm } from "@/components/admin/form-client";
 import { OrderUpdateForm } from "@/components/admin/forms";
+import { OrderInfoForm, OrderItemsEditor, RefundForm } from "@/components/admin/order-forms";
 import { PrintButton } from "@/components/admin/print-button";
 import { Badge, btnSecondary, Card, PageHeader } from "@/components/admin/ui";
+import { deleteOrder } from "@/lib/actions/admin-orders";
+import { getVariantOptions } from "@/lib/admin-queries";
+import { requireAdmin } from "@/lib/auth";
 import { toWhatsAppNumber } from "@/lib/category-utils";
 import {
   ORDER_STATUS_LABELS,
@@ -17,10 +22,14 @@ import {
 import { db } from "@/lib/db";
 import { orders } from "@/lib/db/schema";
 import { formatDate, formatPrice } from "@/lib/format";
+import { getProvider } from "@/lib/payments";
+import { siteOrigin } from "@/lib/request";
+import { getSettings } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Sipariş Detayı" };
 
 export default async function OrderDetailPage({ params }: PageProps<"/admin/siparisler/[id]">) {
+  await requireAdmin();
   const { id } = await params;
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, Number(id) || 0),
@@ -28,9 +37,15 @@ export default async function OrderDetailPage({ params }: PageProps<"/admin/sipa
   });
   if (!order) notFound();
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const itemsLocked =
+    ["shipped", "delivered", "cancelled", "awaiting_payment"].includes(order.status) ||
+    (order.paymentMethod === "card" && order.paymentStatus === "paid");
+  const [settings, options] = await Promise.all([getSettings(), itemsLocked ? [] : getVariantOptions()]);
+  const origin = await siteOrigin(settings);
+  const provider = order.paymentProvider ? getProvider(order.paymentProvider) : null;
+  const card = order.paymentData as { cardAssociation?: string; cardFamily?: string; lastFourDigits?: string } | null;
   const waMessage = encodeURIComponent(
-    `Merhaba ${order.firstName}, #${order.orderNo} numaralı siparişiniz hakkında yazıyoruz. Sipariş detayınız: ${siteUrl}/siparis/${order.token}`,
+    `Merhaba ${order.firstName}, #${order.orderNo} numaralı siparişiniz hakkında yazıyoruz. Sipariş detayınız: ${origin}/siparis/${order.token}`,
   );
 
   return (
@@ -100,8 +115,14 @@ export default async function OrderDetailPage({ params }: PageProps<"/admin/sipa
               </div>
               {order.discount > 0 && (
                 <div className="flex justify-between">
-                  <dt className="text-zinc-500">Sepet indirimi</dt>
+                  <dt className="text-zinc-500">Sepet indirimi (%{order.discountPercent})</dt>
                   <dd className="tabular-nums">-{formatPrice(order.discount)}</dd>
+                </div>
+              )}
+              {order.couponDiscount > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-zinc-500">Kupon ({order.couponCode})</dt>
+                  <dd className="tabular-nums">-{formatPrice(order.couponDiscount)}</dd>
                 </div>
               )}
               <div className="flex justify-between">
@@ -121,46 +142,94 @@ export default async function OrderDetailPage({ params }: PageProps<"/admin/sipa
             </dl>
           </Card>
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Card title="Müşteri">
-              <div className="space-y-1 text-sm">
+          {!itemsLocked && (
+            <Card title="Ürünleri düzenle" description="Adet değiştirin, ürün çıkarın veya ekleyin; stok ve tutar otomatik güncellenir." className="print:hidden">
+              <OrderItemsEditor
+                orderId={order.id}
+                items={order.items.map(({ id, name, size, unitPrice, quantity }) => ({ id, name, size, unitPrice, quantity }))}
+                shippingFee={order.shippingFee}
+                options={options}
+              />
+            </Card>
+          )}
+
+          <Card title="Müşteri ve teslimat">
+            <div className="mb-5 grid gap-4 text-sm sm:grid-cols-2 print:mb-0">
+              <div>
                 <p className="font-medium">
                   {order.firstName} {order.lastName}
                 </p>
-                <p>
-                  <a href={`mailto:${order.email}`} className="hover:underline">
-                    {order.email}
-                  </a>
-                </p>
-                <p>
-                  <a href={`tel:${order.phone}`} className="hover:underline">
-                    {order.phone}
-                  </a>
-                </p>
-                <p className="pt-2 text-xs text-zinc-500">{order.userId ? "Üye müşteri" : "Misafir sipariş"}</p>
+                <p>{order.email}</p>
+                <p>{order.phone}</p>
+                <p className="pt-1 text-xs text-zinc-500">{order.userId ? "Üye müşteri" : "Misafir sipariş"}</p>
               </div>
-            </Card>
-            <Card title="Teslimat adresi">
-              <div className="space-y-1 text-sm">
+              <div>
                 <p>{order.address}</p>
                 <p>
                   {order.district} / {order.city}
                 </p>
-                {order.note && (
-                  <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-[13px] text-amber-900">Not: {order.note}</p>
-                )}
+                {order.note && <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[13px] text-amber-900">Not: {order.note}</p>}
               </div>
-            </Card>
-          </div>
+            </div>
+            <details className="print:hidden">
+              <summary className="cursor-pointer text-sm font-medium text-zinc-700">Bilgileri düzenle</summary>
+              <div className="mt-4">
+                <OrderInfoForm
+                  orderId={order.id}
+                  values={{
+                    email: order.email,
+                    phone: order.phone,
+                    firstName: order.firstName,
+                    lastName: order.lastName,
+                    city: order.city,
+                    district: order.district,
+                    address: order.address,
+                    note: order.note,
+                  }}
+                />
+              </div>
+            </details>
+          </Card>
         </div>
 
         <div className="space-y-6 print:hidden">
           <Card title="Ödeme">
-            <p className="text-sm">{PAYMENT_METHOD_LABELS[order.paymentMethod]}</p>
-            <p className="text-xs text-zinc-500">{PAYMENT_STATUS_LABELS[order.paymentStatus]}</p>
+            <div className="space-y-1 text-sm">
+              <p>
+                {PAYMENT_METHOD_LABELS[order.paymentMethod]}
+                {provider && <span className="text-zinc-500"> · {provider.name}</span>}
+              </p>
+              <p className="text-zinc-600">{PAYMENT_STATUS_LABELS[order.paymentStatus]}</p>
+              {card?.lastFourDigits && (
+                <p className="text-zinc-600">
+                  {card.cardAssociation?.replaceAll("_", " ")} {card.cardFamily} •••• {card.lastFourDigits}
+                  {order.installment > 1 && ` · ${order.installment} taksit`}
+                </p>
+              )}
+              {order.paymentId && <p className="font-mono text-xs text-zinc-500">Ödeme no: {order.paymentId}</p>}
+              {order.paidAt && <p className="text-xs text-zinc-500">Ödeme tarihi: {formatDate(order.paidAt)}</p>}
+            </div>
+            {order.paymentStatus === "refunded" && (
+              <p className="mt-3 rounded-md bg-zinc-100 px-3 py-2 text-xs text-zinc-700">
+                <b>Ödeme iade edildi.</b> {order.adminNote.split("\n").filter(Boolean).at(-1)}
+              </p>
+            )}
+            {order.paymentMethod === "card" && order.paymentStatus === "paid" && provider?.refund && (
+              <div className="mt-4 border-t border-zinc-100 pt-4">
+                <RefundForm orderId={order.id} total={order.total} providerName={provider.name} />
+              </div>
+            )}
           </Card>
           <Card title="Siparişi güncelle">
             <OrderUpdateForm order={order} />
+          </Card>
+          <Card title="Siparişi sil">
+            <p className="mb-3 text-xs text-zinc-500">
+              Sipariş kalıcı olarak silinir; iptal edilmemişse stoklar geri eklenir. Kayıt tutmak için silmek yerine iptal etmeniz önerilir.
+            </p>
+            <ConfirmForm action={deleteOrder} id={order.id} message={`#${order.orderNo} numaralı sipariş kalıcı olarak silinsin mi?`}>
+              Siparişi sil
+            </ConfirmForm>
           </Card>
         </div>
       </div>

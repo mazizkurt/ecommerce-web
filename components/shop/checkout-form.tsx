@@ -1,21 +1,30 @@
 "use client";
 
-import { Banknote, Lock, Truck } from "lucide-react";
+import { Banknote, CreditCard, Lock, Tag, Truck, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
-import { type CheckoutState, placeOrder } from "@/lib/actions/shop";
+import { useActionState, useEffect, useState, useTransition } from "react";
+import { applyCoupon, type CheckoutState, placeOrder } from "@/lib/actions/shop";
 import { cart } from "@/lib/cart-store";
 import { cn } from "@/lib/cn";
-import { CITIES, PAYMENT_METHOD_LABELS } from "@/lib/constants";
-import type { PaymentMethod } from "@/lib/db/schema";
+import { CITIES } from "@/lib/constants";
 import { formatPrice } from "@/lib/format";
-import { calcTotals, cartPrice } from "@/lib/pricing";
+import { type AppliedCoupon, calcTotals, cartPrice } from "@/lib/pricing";
 import { useSyncedCart } from "@/lib/use-synced-cart";
 import { useCartUI } from "./cart-ui";
 
+export type CheckoutMethod = {
+  value: string;
+  label: string;
+  description: string;
+  kind: "card" | "bank" | "cod";
+  fee?: number;
+};
+
 type Defaults = { email: string; phone: string; firstName: string; lastName: string };
+
+const METHOD_ICONS = { card: CreditCard, bank: Banknote, cod: Truck };
 
 const inputCls = (error?: string) =>
   cn(
@@ -46,38 +55,66 @@ function Field({
 export function CheckoutForm({
   methods,
   defaults,
+  paymentError,
 }: {
-  methods: PaymentMethod[];
+  methods: CheckoutMethod[];
   defaults: Defaults;
+  paymentError: string | null;
 }) {
   const router = useRouter();
   const { items, notice, synced } = useSyncedCart();
   const { pricing } = useCartUI();
-  const [method, setMethod] = useState<PaymentMethod | undefined>(methods[0]);
+  const [method, setMethod] = useState<string | undefined>(methods[0]?.value);
   const [state, action, pending] = useActionState<CheckoutState, FormData>(placeOrder, {});
-  const totals = calcTotals(items, pricing, method);
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponMessage, setCouponMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [couponPending, startCoupon] = useTransition();
+
+  const selected = methods.find((m) => m.value === method);
+  const methodKind = selected?.kind === "cod" ? "cash_on_delivery" : selected?.kind;
+  const totals = calcTotals(items, pricing, methodKind, coupon);
   const v = { ...defaults, ...state.values } as Record<string, string | undefined>;
   const e = state.errors ?? {};
+  const cartPayload = items.map((i) => ({ variantId: i.variantId, quantity: i.quantity }));
 
   useEffect(() => {
-    if (state.ok && state.token) {
+    if (!state.ok) return;
+    if (state.redirectUrl) {
+      // Kartlı ödeme: sepet, ödeme başarıyla tamamlanınca (sipariş sayfasında) boşaltılır.
+      window.location.assign(state.redirectUrl);
+    } else if (state.token) {
       cart.clear();
       router.replace(`/siparis/${state.token}?yeni=1`);
     }
   }, [state, router]);
 
+  const submitCoupon = () => {
+    if (!couponInput.trim()) return;
+    startCoupon(async () => {
+      const result = await applyCoupon(couponInput, cartPayload);
+      if (result.ok) {
+        setCoupon(result.coupon);
+        setCouponInput("");
+      }
+      setCouponMessage({ ok: result.ok, text: result.message });
+    });
+  };
+
   if (state.ok) {
-    return <p className="py-24 text-center text-sm">Siparişiniz oluşturuluyor...</p>;
+    return (
+      <p className="py-24 text-center text-sm">
+        {state.redirectUrl ? "Güvenli ödeme sayfasına yönlendiriliyorsunuz..." : "Siparişiniz oluşturuluyor..."}
+      </p>
+    );
   }
 
   if (items.length === 0) {
     return (
       <div className="py-24 text-center">
-        <p className="text-sm text-zinc-600">
-          {synced ? "Sepetinizde ürün bulunmuyor." : "Sepetiniz yükleniyor..."}
-        </p>
+        <p className="text-sm text-zinc-600">{synced ? "Sepetinizde ürün bulunmuyor." : "Sepetiniz yükleniyor..."}</p>
         {notice && <p className="mt-2 text-[13px] text-amber-700">{notice}</p>}
-        <Link href="/" className="mt-6 inline-block bg-black px-8 py-3 text-sm text-white">
+        <Link href="/" className="mt-6 inline-block bg-brand px-8 py-3 text-sm text-brand-text">
           ALIŞVERİŞE BAŞLA
         </Link>
       </div>
@@ -94,17 +131,17 @@ export function CheckoutForm({
 
   return (
     <form action={action} className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
-      <input
-        type="hidden"
-        name="items"
-        value={JSON.stringify(items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })))}
-      />
+      <input type="hidden" name="items" value={JSON.stringify(cartPayload)} />
+      <input type="hidden" name="couponCode" value={coupon?.code ?? ""} />
 
       <div className="space-y-8">
-        {notice && (
-          <p className="border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-            {notice}
+        {paymentError && (
+          <p role="alert" className="border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+            {paymentError}
           </p>
+        )}
+        {notice && (
+          <p className="border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">{notice}</p>
         )}
 
         <section>
@@ -162,38 +199,35 @@ export function CheckoutForm({
         <section>
           <h2 className="mb-4 text-base font-medium">3. Ödeme Yöntemi</h2>
           <div className="space-y-2.5">
-            {methods.map((m) => (
-              <label
-                key={m}
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 border p-4 transition-colors",
-                  method === m ? "border-black" : "border-zinc-300",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value={m}
-                  checked={method === m}
-                  onChange={() => setMethod(m)}
-                  className="mt-1 accent-black"
-                />
-                <span className="flex-1">
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    {m === "bank_transfer" ? <Banknote className="size-4" /> : <Truck className="size-4" />}
-                    {PAYMENT_METHOD_LABELS[m]}
-                    {m === "cash_on_delivery" && pricing.codFee > 0 && (
-                      <span className="font-normal text-zinc-500">(+{formatPrice(pricing.codFee)} hizmet bedeli)</span>
-                    )}
+            {methods.map((m) => {
+              const Icon = METHOD_ICONS[m.kind];
+              return (
+                <label
+                  key={m.value}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 border p-4 transition-colors",
+                    method === m.value ? "border-black" : "border-zinc-300",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value={m.value}
+                    checked={method === m.value}
+                    onChange={() => setMethod(m.value)}
+                    className="mt-1 accent-black"
+                  />
+                  <span className="flex-1">
+                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                      <Icon className="size-4" />
+                      {m.label}
+                      {m.fee ? <span className="font-normal text-zinc-500">(+{formatPrice(m.fee)} hizmet bedeli)</span> : null}
+                    </span>
+                    {m.description && <span className="mt-1 block text-[13px] text-zinc-500">{m.description}</span>}
                   </span>
-                  <span className="mt-1 block text-[13px] text-zinc-500">
-                    {m === "bank_transfer"
-                      ? "Siparişinizi tamamladıktan sonra banka hesap bilgilerimiz gösterilecektir. Ödemeniz onaylandığında siparişiniz hazırlanır."
-                      : "Ödemeyi ürünü teslim alırken kapıda nakit veya kart ile yapabilirsiniz."}
-                  </span>
-                </span>
-              </label>
-            ))}
+                </label>
+              );
+            })}
           </div>
           {e.paymentMethod && <p className="mt-1 text-xs text-red-600">{e.paymentMethod}</p>}
         </section>
@@ -219,6 +253,56 @@ export function CheckoutForm({
             </li>
           ))}
         </ul>
+
+        <div className="mt-4 border-t border-line pt-4">
+          {coupon ? (
+            <div className="flex items-center justify-between bg-soft px-3 py-2 text-[13px]">
+              <span className="flex items-center gap-2">
+                <Tag className="size-4" /> <b>{coupon.code}</b> uygulandı
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoupon(null);
+                  setCouponMessage(null);
+                }}
+                aria-label="Kuponu kaldır"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                value={couponInput}
+                onChange={(ev) => setCouponInput(ev.target.value)}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter") {
+                    ev.preventDefault();
+                    submitCoupon();
+                  }
+                }}
+                placeholder="İndirim kuponu"
+                aria-label="İndirim kuponu"
+                className="h-10 flex-1 border border-zinc-300 px-3 text-sm uppercase outline-none focus:border-black"
+              />
+              <button
+                type="button"
+                onClick={submitCoupon}
+                disabled={couponPending}
+                className="h-10 border border-black px-4 text-[13px] font-medium disabled:opacity-50"
+              >
+                {couponPending ? "..." : "Uygula"}
+              </button>
+            </div>
+          )}
+          {(couponMessage || e.couponCode) && (
+            <p className={cn("mt-1.5 text-xs", couponMessage?.ok && !e.couponCode ? "text-emerald-700" : "text-red-600")}>
+              {e.couponCode ?? couponMessage?.text}
+            </p>
+          )}
+        </div>
+
         <dl className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
           <div className="flex justify-between">
             <dt className="text-zinc-600">Ara Toplam</dt>
@@ -228,6 +312,12 @@ export function CheckoutForm({
             <div className="flex justify-between text-accent">
               <dt>Sepet İndirimi</dt>
               <dd>-{formatPrice(totals.discount)}</dd>
+            </div>
+          )}
+          {coupon && totals.couponDiscount > 0 && (
+            <div className="flex justify-between text-accent">
+              <dt>Kupon ({coupon.code})</dt>
+              <dd>-{formatPrice(totals.couponDiscount)}</dd>
             </div>
           )}
           <div className="flex justify-between">
@@ -261,7 +351,7 @@ export function CheckoutForm({
         </label>
         {e.agreement && <p className="mt-1 text-xs text-red-600">{e.agreement}</p>}
 
-        {state.message && (
+        {state.message && !e.couponCode && (
           <p role="alert" className="mt-4 bg-red-50 px-3 py-2.5 text-[13px] text-red-700">
             {state.message}
           </p>
@@ -270,10 +360,10 @@ export function CheckoutForm({
         <button
           type="submit"
           disabled={pending}
-          className="mt-5 flex h-12 w-full items-center justify-center gap-2 bg-[#030303] text-sm font-medium text-white transition-colors hover:bg-[#4dc762] disabled:opacity-60"
+          className="mt-5 flex h-12 w-full items-center justify-center gap-2 bg-brand text-sm font-medium text-brand-text transition-colors hover:bg-cart-hover disabled:opacity-60"
         >
           <Lock className="size-4" />
-          {pending ? "İŞLENİYOR..." : "SİPARİŞİ TAMAMLA"}
+          {pending ? "İŞLENİYOR..." : selected?.kind === "card" ? "ÖDEMEYE GEÇ" : "SİPARİŞİ TAMAMLA"}
         </button>
       </aside>
     </form>

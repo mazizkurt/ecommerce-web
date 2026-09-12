@@ -1,6 +1,8 @@
-import { and, asc, count, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, lt, lte, notInArray, sql } from "drizzle-orm";
 import Link from "next/link";
 import { Badge, Card, PageHeader, Table } from "@/components/admin/ui";
+import { requireAdmin } from "@/lib/auth";
+import { expireStalePayments } from "@/lib/orders";
 import { cn } from "@/lib/cn";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_STYLES } from "@/lib/constants";
 import { db } from "@/lib/db";
@@ -44,7 +46,13 @@ async function revenue(from: Date, to: Date) {
       n: count(),
     })
     .from(orders)
-    .where(and(gte(orders.createdAt, from), lt(orders.createdAt, to), ne(orders.status, "cancelled")));
+    .where(
+      and(
+        gte(orders.createdAt, from),
+        lt(orders.createdAt, to),
+        notInArray(orders.status, ["cancelled", "awaiting_payment"]),
+      ),
+    );
   return row;
 }
 
@@ -86,6 +94,8 @@ function StatTile({
 }
 
 export default async function DashboardPage() {
+  await requireAdmin();
+  await expireStalePayments();
   const { dayStart, dayEnd, monthStart, nextMonthStart, prevMonthStart, prevSamePoint } = periods();
 
   const [todayRev, monthRev, prevRev, [pending], [activeProducts], lowStock, recent] = await Promise.all([

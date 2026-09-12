@@ -1,16 +1,19 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import { createSession, destroySession, getCurrentUser } from "@/lib/auth";
+import { checkCoupon, findCoupon } from "@/lib/coupons";
 import { db } from "@/lib/db";
 import {
+  coupons,
   orderItems,
   orders,
-  PAYMENT_METHODS,
+  type PaymentMethod,
   productImages,
   products,
   productVariants,
@@ -19,13 +22,13 @@ import {
   users,
 } from "@/lib/db/schema";
 import { type FormState, fieldErrors, textValues } from "@/lib/form-utils";
+import { notifyOrderPlaced } from "@/lib/notifications";
+import { expireStalePayments, failCardOrder, loadPaymentOrder } from "@/lib/orders";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { calcTotals } from "@/lib/pricing";
-import {
-  enabledPaymentMethods,
-  getSettings,
-  pricingFrom,
-} from "@/lib/settings";
+import { getEnabledProviders, getProvider, getProviderConfig } from "@/lib/payments";
+import { type AppliedCoupon, calcTotals, cartPrice } from "@/lib/pricing";
+import { clientIp, siteOrigin } from "@/lib/request";
+import { enabledBuiltinMethods, getSettings, pricingFrom } from "@/lib/settings";
 
 export type { FormState };
 
@@ -41,10 +44,7 @@ export async function subscribeNewsletter(
   if (!parsed.success) {
     return { ok: false, message: "Geçerli bir e-posta adresi girin." };
   }
-  await db
-    .insert(subscribers)
-    .values({ email: parsed.data })
-    .onConflictDoNothing();
+  await db.insert(subscribers).values({ email: parsed.data }).onConflictDoNothing();
   return { ok: true, message: "Bültenimize kaydoldunuz, teşekkürler!" };
 }
 
@@ -54,11 +54,7 @@ const reviewSchema = z.object({
   productId: z.coerce.number().int().positive(),
   name: z.string().trim().min(2, "Adınızı girin.").max(60),
   rating: z.coerce.number().int().min(1).max(5),
-  comment: z
-    .string()
-    .trim()
-    .min(5, "Yorum en az 5 karakter olmalı.")
-    .max(1000),
+  comment: z.string().trim().min(5, "Yorum en az 5 karakter olmalı.").max(1000),
 });
 
 export async function submitReview(
@@ -183,7 +179,7 @@ export async function logout() {
   redirect("/");
 }
 
-/* ---------------- Sepet / Ödeme ---------------- */
+/* ---------------- Sepet ---------------- */
 
 export type SyncedVariant = {
   variantId: number;
@@ -218,6 +214,42 @@ export async function syncCart(variantIds: number[]): Promise<SyncedVariant[]> {
     .where(inArray(productVariants.id, ids));
 }
 
+const itemsSchema = z
+  .array(
+    z.object({
+      variantId: z.number().int().positive(),
+      quantity: z.number().int().min(1).max(50),
+    }),
+  )
+  .min(1)
+  .max(50);
+
+type CartInput = z.infer<typeof itemsSchema>;
+
+/** Sepet indirimi uygulanmış ara toplam (kupon kontrolü için), fiyatlar veritabanından. */
+async function discountedSubtotal(items: CartInput) {
+  const settings = await getSettings();
+  const { cartDiscountPercent } = pricingFrom(settings);
+  const rows = await syncCart(items.map((i) => i.variantId));
+  return items.reduce((sum, i) => {
+    const row = rows.find((r) => r.variantId === i.variantId);
+    return row ? sum + cartPrice(row.price, cartDiscountPercent) * i.quantity : sum;
+  }, 0);
+}
+
+export async function applyCoupon(
+  code: string,
+  items: CartInput,
+): Promise<{ ok: true; coupon: AppliedCoupon; message: string } | { ok: false; message: string }> {
+  const parsedItems = itemsSchema.safeParse(items);
+  if (!parsedItems.success) return { ok: false, message: "Sepetiniz boş." };
+  const result = checkCoupon(await findCoupon(code), await discountedSubtotal(parsedItems.data));
+  if (!result.ok) return result;
+  return { ok: true, coupon: result.applied, message: `${result.applied.code} kuponu uygulandı.` };
+}
+
+/* ---------------- Ödeme ---------------- */
+
 const checkoutSchema = z.object({
   email: z.email("Geçerli bir e-posta adresi girin."),
   phone: z
@@ -232,23 +264,14 @@ const checkoutSchema = z.object({
   district: z.string().trim().min(2, "İlçe girin.").max(60),
   address: z.string().trim().min(10, "Açık adresinizi girin.").max(500),
   note: z.string().trim().max(500).default(""),
-  paymentMethod: z.enum(PAYMENT_METHODS, "Ödeme yöntemi seçin."),
+  paymentMethod: z.string().min(1, "Ödeme yöntemi seçin."),
+  couponCode: z.string().trim().max(40).default(""),
   agreement: z.literal("on", "Sözleşmeleri onaylamanız gerekiyor."),
 });
 
-const itemsSchema = z
-  .array(
-    z.object({
-      variantId: z.number().int().positive(),
-      quantity: z.number().int().min(1).max(50),
-    }),
-  )
-  .min(1)
-  .max(50);
+export type CheckoutState = FormState & { token?: string; redirectUrl?: string };
 
-export type CheckoutState = FormState & { token?: string };
-
-class StockError extends Error {}
+class CheckoutError extends Error {}
 
 export async function placeOrder(
   _prev: CheckoutState,
@@ -257,17 +280,14 @@ export async function placeOrder(
   const values = textValues(formData);
   delete values.items;
 
-  let items: z.infer<typeof itemsSchema>;
+  let items: CartInput;
   try {
     items = itemsSchema.parse(JSON.parse(String(formData.get("items") ?? "[]")));
   } catch {
     return { ok: false, message: "Sepetiniz boş.", values };
   }
 
-  const parsed = checkoutSchema.safeParse({
-    ...values,
-    email: values.email?.trim().toLowerCase(),
-  });
+  const parsed = checkoutSchema.safeParse({ ...values, email: values.email?.trim().toLowerCase() });
   if (!parsed.success) {
     return {
       ok: false,
@@ -278,15 +298,26 @@ export async function placeOrder(
   }
   const data = parsed.data;
   const settings = await getSettings();
-  if (!enabledPaymentMethods(settings).includes(data.paymentMethod)) {
+
+  // Ödeme yöntemi: "bank_transfer" | "cash_on_delivery" | "card:<sağlayıcı>"
+  let method: PaymentMethod;
+  let provider = null as ReturnType<typeof getProvider>;
+  if (data.paymentMethod.startsWith("card:")) {
+    const providerId = data.paymentMethod.slice(5);
+    const enabled = await getEnabledProviders();
+    provider = enabled.some((p) => p.id === providerId) ? getProvider(providerId) : null;
+    if (!provider) return { ok: false, message: "Seçilen ödeme yöntemi kullanılamıyor.", values };
+    method = "card";
+  } else if (enabledBuiltinMethods(settings).includes(data.paymentMethod as "bank_transfer")) {
+    method = data.paymentMethod as PaymentMethod;
+  } else {
     return { ok: false, message: "Seçilen ödeme yöntemi kullanılamıyor.", values };
   }
 
+  await expireStalePayments();
+
   const quantities = new Map<number, number>();
-  for (const i of items) {
-    quantities.set(i.variantId, (quantities.get(i.variantId) ?? 0) + i.quantity);
-  }
-  const variantIds = [...quantities.keys()];
+  for (const i of items) quantities.set(i.variantId, (quantities.get(i.variantId) ?? 0) + i.quantity);
   const rows = await db
     .select({
       variantId: productVariants.id,
@@ -300,52 +331,67 @@ export async function placeOrder(
     })
     .from(productVariants)
     .innerJoin(products, eq(products.id, productVariants.productId))
-    .where(inArray(productVariants.id, variantIds));
+    .where(inArray(productVariants.id, [...quantities.keys()]));
 
   const problems: string[] = [];
-  for (const id of variantIds) {
+  for (const [id, qty] of quantities) {
     const row = rows.find((r) => r.variantId === id);
-    const qty = quantities.get(id)!;
     if (!row || !row.isActive) problems.push("Sepetinizdeki bir ürün artık satışta değil.");
-    else if (row.stock < qty)
-      problems.push(`${row.name} (${row.size}) için yeterli stok yok (kalan: ${row.stock}).`);
+    else if (row.stock < qty) problems.push(`${row.name} (${row.size}) için yeterli stok yok (kalan: ${row.stock}).`);
   }
-  if (problems.length > 0) {
-    return { ok: false, message: problems.join(" "), values };
-  }
+  if (problems.length > 0) return { ok: false, message: problems.join(" "), values };
 
   const images = await db
     .select({ productId: productImages.productId, url: productImages.url })
     .from(productImages)
     .where(inArray(productImages.productId, rows.map((r) => r.productId)))
     .orderBy(asc(productImages.sortOrder), asc(productImages.id));
-
   const lines = rows.map((r) => ({
     ...r,
     quantity: quantities.get(r.variantId)!,
     image: images.find((i) => i.productId === r.productId)?.url ?? "",
   }));
-  const totals = calcTotals(lines, pricingFrom(settings), data.paymentMethod);
+
+  const pricing = pricingFrom(settings);
+  let coupon: AppliedCoupon | null = null;
+  if (data.couponCode) {
+    const discounted = lines.reduce((s, l) => s + cartPrice(l.price, pricing.cartDiscountPercent) * l.quantity, 0);
+    const check = checkCoupon(await findCoupon(data.couponCode), discounted);
+    if (!check.ok) return { ok: false, errors: { couponCode: check.message }, message: check.message, values };
+    coupon = check.applied;
+  }
+  const totals = calcTotals(lines, pricing, method, coupon);
+  if (method === "card" && totals.total <= 0) {
+    return { ok: false, message: "Bu sipariş tutarı kartla ödenemez, başka bir ödeme yöntemi seçin.", values };
+  }
+
   const user = await getCurrentUser();
   const token = randomBytes(16).toString("hex");
-
+  let orderId: number;
   try {
-    await db.transaction(async (tx) => {
+    orderId = await db.transaction(async (tx) => {
       // Varyantları sabit sırayla kilitle: eşzamanlı siparişlerde deadlock oluşmaz.
       for (const l of [...lines].sort((a, b) => a.variantId - b.variantId)) {
         const updated = await tx
           .update(productVariants)
           .set({ stock: sql`${productVariants.stock} - ${l.quantity}` })
+          .where(and(eq(productVariants.id, l.variantId), gte(productVariants.stock, l.quantity)))
+          .returning({ id: productVariants.id });
+        if (updated.length !== 1) throw new CheckoutError(`${l.name} (${l.size}) stokta kalmadı.`);
+      }
+      if (coupon) {
+        const used = await tx
+          .update(coupons)
+          .set({ usedCount: sql`${coupons.usedCount} + 1` })
           .where(
             and(
-              eq(productVariants.id, l.variantId),
-              gte(productVariants.stock, l.quantity),
+              eq(coupons.code, coupon.code),
+              eq(coupons.isActive, true),
+              or(isNull(coupons.maxUses), lt(coupons.usedCount, coupons.maxUses)),
             ),
           )
-          .returning({ id: productVariants.id });
-        if (updated.length !== 1) {
-          throw new StockError(`${l.name} (${l.size}) stokta kalmadı.`);
-        }
+          .returning({ id: coupons.id });
+        if (!used.length) throw new CheckoutError("Bu kuponun kullanım limiti dolmuş.");
       }
       const [order] = await tx
         .insert(orders)
@@ -360,9 +406,14 @@ export async function placeOrder(
           district: data.district,
           address: data.address,
           note: data.note,
-          paymentMethod: data.paymentMethod,
+          status: method === "card" ? "awaiting_payment" : "pending",
+          paymentMethod: method,
+          paymentProvider: provider?.id ?? "",
           subtotal: totals.subtotal,
+          discountPercent: pricing.cartDiscountPercent,
           discount: totals.discount,
+          couponCode: coupon?.code ?? "",
+          couponDiscount: totals.couponDiscount,
           shippingFee: totals.shippingFee,
           paymentFee: totals.paymentFee,
           total: totals.total,
@@ -381,13 +432,38 @@ export async function placeOrder(
           quantity: l.quantity,
         })),
       );
+      return order.id;
     });
   } catch (error) {
-    if (error instanceof StockError) return { ok: false, message: error.message, values };
+    if (error instanceof CheckoutError) return { ok: false, message: error.message, values };
     throw error;
   }
 
   // Stoklar değiştiği için mağaza sayfalarını yenile.
   revalidatePath("/", "layout");
+
+  if (provider) {
+    const paymentOrder = await loadPaymentOrder({ id: orderId });
+    const origin = await siteOrigin(settings);
+    const result = await provider
+      .initialize({
+        order: paymentOrder!,
+        config: await getProviderConfig(provider),
+        callbackUrl: `${origin}/api/payments/${provider.id}/callback?order=${token}`,
+        ip: await clientIp(),
+      })
+      .catch((e: unknown) => ({
+        ok: false as const,
+        message: `Ödeme sağlayıcısına ulaşılamadı: ${e instanceof Error ? e.message : "bilinmeyen hata"}`,
+      }));
+    if (!result.ok) {
+      await failCardOrder(orderId, result.message);
+      return { ok: false, message: result.message, values };
+    }
+    await db.update(orders).set({ paymentRef: result.reference }).where(eq(orders.id, orderId));
+    return { ok: true, token, redirectUrl: result.redirectUrl };
+  }
+
+  after(() => notifyOrderPlaced(orderId));
   return { ok: true, token };
 }

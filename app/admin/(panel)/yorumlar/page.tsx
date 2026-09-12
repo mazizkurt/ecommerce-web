@@ -1,10 +1,11 @@
 import { desc, eq } from "drizzle-orm";
-import { Star } from "lucide-react";
+import { Plus, Star } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ConfirmForm, SubmitButton } from "@/components/admin/form-client";
-import { btnSecondary, EmptyState, PageHeader } from "@/components/admin/ui";
+import { btnPrimary, btnSecondary, EmptyState, PageHeader } from "@/components/admin/ui";
 import { deleteReview, setReviewApproval } from "@/lib/actions/admin";
+import { requireAdmin } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { db } from "@/lib/db";
 import { products, reviews } from "@/lib/db/schema";
@@ -13,6 +14,7 @@ import { formatDate } from "@/lib/format";
 export const metadata: Metadata = { title: "Yorumlar" };
 
 export default async function ReviewsPage({ searchParams }: PageProps<"/admin/yorumlar">) {
+  await requireAdmin();
   const sp = await searchParams;
   const approved = sp.durum === "onayli";
   const rows = await db
@@ -39,7 +41,15 @@ export default async function ReviewsPage({ searchParams }: PageProps<"/admin/yo
 
   return (
     <>
-      <PageHeader title="Yorumlar" description="Onaylanan yorumlar ürün sayfasında ve anasayfada gösterilir." />
+      <PageHeader
+        title="Yorumlar"
+        description="Onaylanan yorumlar ürün sayfasında ve anasayfada gösterilir."
+        actions={
+          <Link href="/admin/yorumlar/yeni" className={btnPrimary}>
+            <Plus className="size-4" /> Yorum Ekle
+          </Link>
+        }
+      />
       <div className="mb-4 flex gap-1.5">
         <Link href="/admin/yorumlar" className={tab(!approved)}>
           Onay bekleyenler
@@ -74,6 +84,9 @@ export default async function ReviewsPage({ searchParams }: PageProps<"/admin/yo
                   )}
                 </div>
                 <div className="flex gap-2">
+                  <Link href={`/admin/yorumlar/${r.id}`} className={btnSecondary}>
+                    Düzenle
+                  </Link>
                   <form action={setReviewApproval}>
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="approve" value={approved ? "0" : "1"} />

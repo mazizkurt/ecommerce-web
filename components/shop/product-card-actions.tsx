@@ -25,13 +25,15 @@ export function FavoriteButton({
       aria-pressed={active}
       className={cn("text-black", className)}
     >
-      <Heart
-        className={size}
-        strokeWidth={1.6}
-        fill={active ? "currentColor" : "none"}
-      />
+      <Heart className={size} strokeWidth={1.6} fill={active ? "currentColor" : "none"} />
     </button>
   );
+}
+
+/** Paneldeki "Sepetteki Fiyat" etiketi. */
+export function CartPriceLabel() {
+  const { cartPriceLabel } = useCartUI();
+  return <>{cartPriceLabel}</>;
 }
 
 export function AddToCartCardButton({
@@ -47,7 +49,7 @@ export function AddToCartCardButton({
       type="button"
       disabled={disabled}
       onClick={() => quickAdd(product)}
-      className="inline-flex h-8 items-center gap-1.5 rounded-[3px] bg-black px-4 text-[13px] font-medium text-white transition-colors hover:bg-cart-hover disabled:bg-zinc-300"
+      className="inline-flex h-8 items-center gap-1.5 rounded-[3px] bg-brand px-4 text-[13px] font-medium text-brand-text transition-colors hover:bg-cart-hover disabled:bg-zinc-300"
     >
       <ShoppingCart className="size-3.5" strokeWidth={2} />
       {disabled ? "Tükendi" : "Sepete Ekle"}

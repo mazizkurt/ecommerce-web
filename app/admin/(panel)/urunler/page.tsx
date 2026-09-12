@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
@@ -19,6 +20,7 @@ const stockSql = sql<number>`(select coalesce(sum(v.stock), 0) from product_vari
 const imageSql = sql<string | null>`(select i.url from product_images i where i.product_id = ${products.id} order by i.sort_order, i.id limit 1)`;
 
 export default async function ProductsPage({ searchParams }: PageProps<"/admin/urunler">) {
+  await requireAdmin();
   const sp = await searchParams;
   const q = one(sp.q).trim();
   const categoryId = Number(one(sp.kategori)) || null;

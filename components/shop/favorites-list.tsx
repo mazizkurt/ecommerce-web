@@ -15,7 +15,7 @@ export function FavoritesList() {
       <div className="flex flex-col items-center gap-4 py-20 text-center">
         <Heart className="size-14 text-zinc-300" strokeWidth={1} />
         <p className="text-sm text-zinc-600">Favori listenizde ürün bulunmuyor.</p>
-        <Link href="/" className="bg-black px-8 py-3 text-sm font-medium text-white">
+        <Link href="/" className="bg-brand px-8 py-3 text-sm font-medium text-brand-text">
           ÜRÜNLERİ KEŞFET
         </Link>
       </div>

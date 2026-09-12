@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { asc } from "drizzle-orm";
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
@@ -10,6 +11,7 @@ import { BANNER_PLACEMENTS, banners } from "@/lib/db/schema";
 export const metadata: Metadata = { title: "Bannerlar" };
 
 export default async function BannersPage() {
+  await requireAdmin();
   const rows = await db.select().from(banners).orderBy(asc(banners.sortOrder), asc(banners.id));
 
   return (

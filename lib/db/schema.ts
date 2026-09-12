@@ -4,6 +4,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -44,6 +45,20 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
+export const passwordResets = pgTable(
+  "password_resets",
+  {
+    id: text("id").primaryKey(), // token'ın sha256 özeti
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("password_resets_user_idx").on(t.userId)],
+);
+
 export const categories = pgTable(
   "categories",
   {
@@ -58,6 +73,8 @@ export const categories = pgTable(
     showInMenu: boolean("show_in_menu").notNull().default(true),
     highlight: boolean("highlight").notNull().default(false),
     description: text("description").notNull().default(""),
+    imageUrl: text("image_url").notNull().default(""),
+    metaTitle: text("meta_title").notNull().default(""),
   },
   (t) => [index("categories_parent_idx").on(t.parentId)],
 );
@@ -78,12 +95,19 @@ export const products = pgTable(
     isActive: boolean("is_active").notNull().default(true),
     isNew: boolean("is_new").notNull().default(false),
     isTrend: boolean("is_trend").notNull().default(false),
+    // Aynı modelin farklı renkleri ayrı ürünlerdir; groupCode ile birbirine bağlanır.
+    colorName: text("color_name").notNull().default(""),
+    colorHex: text("color_hex").notNull().default(""),
+    groupCode: text("group_code").notNull().default(""),
+    metaTitle: text("meta_title").notNull().default(""),
+    metaDescription: text("meta_description").notNull().default(""),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     index("products_category_idx").on(t.categoryId),
     index("products_created_idx").on(t.createdAt),
+    index("products_group_idx").on(t.groupCode),
   ],
 );
 
@@ -131,14 +155,20 @@ export const productVariants = pgTable(
 );
 
 export const ORDER_STATUSES = [
+  "awaiting_payment",
   "pending",
   "preparing",
   "shipped",
   "delivered",
   "cancelled",
 ] as const;
-export const PAYMENT_METHODS = ["bank_transfer", "cash_on_delivery"] as const;
-export const PAYMENT_STATUSES = ["pending", "paid", "refunded"] as const;
+export const PAYMENT_METHODS = [
+  "bank_transfer",
+  "cash_on_delivery",
+  "card",
+  "manual",
+] as const;
+export const PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded"] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -172,8 +202,18 @@ export const orders = pgTable(
     paymentStatus: text("payment_status", { enum: PAYMENT_STATUSES })
       .notNull()
       .default("pending"),
+    // Online ödeme bilgileri (iyzico vb.)
+    paymentProvider: text("payment_provider").notNull().default(""),
+    paymentRef: text("payment_ref").notNull().default(""),
+    paymentId: text("payment_id").notNull().default(""),
+    paymentData: jsonb("payment_data").$type<Record<string, unknown>>(),
+    installment: integer("installment").notNull().default(1),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
     subtotal: integer("subtotal").notNull(),
+    discountPercent: integer("discount_percent").notNull().default(0),
     discount: integer("discount").notNull().default(0),
+    couponCode: text("coupon_code").notNull().default(""),
+    couponDiscount: integer("coupon_discount").notNull().default(0),
     shippingFee: integer("shipping_fee").notNull().default(0),
     paymentFee: integer("payment_fee").notNull().default(0),
     total: integer("total").notNull(),
@@ -215,12 +255,44 @@ export const orderItems = pgTable(
   (t) => [index("order_items_order_idx").on(t.orderId)],
 );
 
+export const COUPON_TYPES = ["percent", "fixed", "free_shipping"] as const;
+export type CouponType = (typeof COUPON_TYPES)[number];
+
+export const coupons = pgTable("coupons", {
+  id: id(),
+  code: text("code").notNull().unique(), // her zaman BÜYÜK harf
+  description: text("description").notNull().default(""),
+  type: text("type", { enum: COUPON_TYPES }).notNull(),
+  value: integer("value").notNull().default(0), // percent: 1-100, fixed: kuruş
+  minSubtotal: integer("min_subtotal").notNull().default(0),
+  maxUses: integer("max_uses"), // null = sınırsız
+  usedCount: integer("used_count").notNull().default(0),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/** Online ödeme sağlayıcılarının panelden girilen ayarları (lib/payments). */
+export const paymentProviders = pgTable("payment_providers", {
+  id: text("id").primaryKey(), // "iyzico", "paytr"...
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  title: text("title").notNull().default(""),
+  description: text("description").notNull().default(""),
+  config: jsonb("config").$type<Record<string, string>>().notNull().default({}),
+  sortOrder: integer("sort_order").notNull().default(0),
+  updatedAt: updatedAt(),
+});
+
 export const BANNER_PLACEMENTS = ["hero", "wide", "category"] as const;
 export type BannerPlacement = (typeof BANNER_PLACEMENTS)[number];
+export const BANNER_STYLES = ["auto", "light", "dark", "plain"] as const;
+export type BannerStyle = (typeof BANNER_STYLES)[number];
 
 export const banners = pgTable("banners", {
   id: id(),
   placement: text("placement", { enum: BANNER_PLACEMENTS }).notNull(),
+  style: text("style", { enum: BANNER_STYLES }).notNull().default("auto"),
   title: text("title").notNull().default(""),
   subtitle: text("subtitle").notNull().default(""),
   buttonText: text("button_text").notNull().default(""),
@@ -272,6 +344,20 @@ export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+export const emailLogs = pgTable(
+  "email_logs",
+  {
+    id: id(),
+    to: text("to").notNull(),
+    subject: text("subject").notNull(),
+    template: text("template").notNull().default(""),
+    status: text("status", { enum: ["sent", "failed", "skipped"] }).notNull(),
+    error: text("error").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("email_logs_created_idx").on(t.createdAt)],
+);
 
 export const productsRelations = relations(products, ({ many, one }) => ({
   images: many(productImages),

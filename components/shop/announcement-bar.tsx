@@ -12,7 +12,7 @@ export function AnnouncementBar({ text, link }: { text: string; link: string }) 
     </div>
   );
   return (
-    <div className="h-10 overflow-hidden bg-black text-sm text-white lg:text-base">
+    <div className="h-10 overflow-hidden bg-announce-bg text-sm text-announce-text lg:text-base">
       <Link
         href={link || "/"}
         className="flex h-full w-max animate-marquee items-center hover:[animation-play-state:paused]"

@@ -22,7 +22,7 @@ export function CartView() {
           {synced ? "Sepetinizde ürün bulunmamaktadır." : "Sepetiniz yükleniyor..."}
         </p>
         {notice && <p className="max-w-md text-[13px] text-amber-700">{notice}</p>}
-        <Link href="/" className="h-11 bg-black px-8 text-sm font-medium leading-[44px] text-white">
+        <Link href="/" className="h-11 bg-brand px-8 text-sm font-medium leading-[44px] text-brand-text">
           ALIŞVERİŞE BAŞLA
         </Link>
       </div>
@@ -115,7 +115,7 @@ export function CartView() {
         </dl>
         <Link
           href="/odeme"
-          className="mt-5 flex h-12 w-full items-center justify-center bg-[#030303] text-sm font-medium text-white transition-colors hover:bg-[#4dc762]"
+          className="mt-5 flex h-12 w-full items-center justify-center bg-brand text-sm font-medium text-brand-text transition-colors hover:bg-cart-hover"
         >
           ÖDEMEYE GEÇ
         </Link>

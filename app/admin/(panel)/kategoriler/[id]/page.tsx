@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,6 +12,7 @@ import { getAllCategories } from "@/lib/queries";
 export const metadata: Metadata = { title: "Kategoriyi Düzenle" };
 
 export default async function EditCategoryPage({ params }: PageProps<"/admin/kategoriler/[id]">) {
+  await requireAdmin();
   const { id } = await params;
   const all = await getAllCategories();
   const category = all.find((c) => c.id === Number(id));

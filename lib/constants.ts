@@ -1,5 +1,7 @@
 import type {
   BannerPlacement,
+  BannerStyle,
+  CouponType,
   OrderStatus,
   PageGroup,
   PaymentMethod,
@@ -7,6 +9,7 @@ import type {
 } from "./db/schema";
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  awaiting_payment: "Ödeme Bekleniyor",
   pending: "Onay Bekliyor",
   preparing: "Hazırlanıyor",
   shipped: "Kargoya Verildi",
@@ -15,6 +18,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
+  awaiting_payment: "bg-orange-50 text-orange-700 ring-orange-200",
   pending: "bg-amber-50 text-amber-700 ring-amber-200",
   preparing: "bg-sky-50 text-sky-700 ring-sky-200",
   shipped: "bg-violet-50 text-violet-700 ring-violet-200",
@@ -25,18 +29,34 @@ export const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   bank_transfer: "Havale / EFT",
   cash_on_delivery: "Kapıda Ödeme",
+  card: "Kredi / Banka Kartı",
+  manual: "Diğer / Elden",
 };
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   pending: "Ödeme Bekleniyor",
   paid: "Ödendi",
+  failed: "Başarısız",
   refunded: "İade Edildi",
+};
+
+export const COUPON_TYPE_LABELS: Record<CouponType, string> = {
+  percent: "Yüzde indirim (%)",
+  fixed: "Sabit tutar indirim (TL)",
+  free_shipping: "Ücretsiz kargo",
 };
 
 export const BANNER_PLACEMENT_LABELS: Record<BannerPlacement, string> = {
   hero: "Ana Slider (tam genişlik)",
   wide: "Geniş Kampanya Bannerı",
   category: "Kategori Bannerları (3'lü)",
+};
+
+export const BANNER_STYLE_LABELS: Record<BannerStyle, string> = {
+  auto: "Otomatik (konuma göre)",
+  light: "Açık zemin, çerçeveli yazı",
+  dark: "Koyu gölge, beyaz yazı",
+  plain: "Sadece görsel (yazısız)",
 };
 
 export const PAGE_GROUP_LABELS: Record<PageGroup, string> = {

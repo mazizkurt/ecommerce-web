@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ListingToolbar } from "@/components/shop/listing-toolbar";
 import { Breadcrumb, Pagination, ProductGrid } from "@/components/shop/sections";
@@ -18,8 +19,9 @@ export async function generateMetadata({
   const { slug } = await params;
   const category = (await getAllCategories()).find((c) => c.slug === slug);
   return {
-    title: category?.name ?? "Kategori",
+    title: category?.metaTitle || category?.name || "Kategori",
     description: category?.description || undefined,
+    alternates: category ? { canonical: `/kategori/${category.slug}` } : undefined,
   };
 }
 
@@ -55,6 +57,11 @@ export default async function CategoryPage({
           })),
         ]}
       />
+      {category.imageUrl && (
+        <div className="relative mx-[3px] mb-[5px] aspect-[1920/500] overflow-hidden bg-soft">
+          <Image src={category.imageUrl} alt={category.name} fill priority sizes="100vw" className="object-cover" />
+        </div>
+      )}
       <ListingToolbar
         current={listing}
         sizes={sizes}

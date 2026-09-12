@@ -1,13 +1,16 @@
 "use server";
 
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
+import { checkbox, idFrom, parseJson, refreshStore, str, uniqueSlug } from "@/lib/admin-utils";
 import { createSession, destroySession, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   BANNER_PLACEMENTS,
+  BANNER_STYLES,
   banners,
   categories,
   ORDER_STATUSES,
@@ -26,41 +29,25 @@ import {
 } from "@/lib/db/schema";
 import { parsePrice, slugify } from "@/lib/format";
 import { type FormState, fieldErrors } from "@/lib/form-utils";
+import { notifyOrderUpdated } from "@/lib/notifications";
+import { releaseCoupon, restoreStock } from "@/lib/orders";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { DEFAULT_SETTINGS, type SettingKey } from "@/lib/settings";
-
-/** Mağaza sayfaları statik önbelleklenir; her değişiklikten sonra tazelenir. */
-function refreshStore() {
-  revalidatePath("/", "layout");
-}
-
-const str = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
-const checkbox = (formData: FormData, key: string) => formData.get(key) === "on";
-const idFrom = (formData: FormData) => Number(formData.get("id")) || null;
-
-async function uniqueSlug(
-  anyTable: typeof products | typeof categories | typeof pages,
-  base: string,
-  excludeId: number | null,
-) {
-  // Üç tablo da aynı id/slug sütunlarına sahip; sorgu kurucunun tek tip görmesi için daraltılır.
-  const table = anyTable as typeof products;
-  const root = base || "icerik";
-  for (let i = 1; i < 500; i++) {
-    const candidate = i === 1 ? root : `${root}-${i}`;
-    const [clash] = await db
-      .select({ id: table.id })
-      .from(table)
-      .where(
-        excludeId
-          ? and(eq(table.slug, candidate), ne(table.id, excludeId))
-          : eq(table.slug, candidate),
-      )
-      .limit(1);
-    if (!clash) return candidate;
-  }
-  return `${root}-${Date.now()}`;
-}
+import { getEnabledProviders } from "@/lib/payments";
+import {
+  BODY_FONTS,
+  BOOLEAN_KEYS,
+  COLOR_KEYS,
+  DEFAULT_SETTINGS,
+  enabledBuiltinMethods,
+  getSettings,
+  HEX_COLOR,
+  HOME_SECTIONS,
+  INFO_ICONS,
+  LOGO_FONTS,
+  MONEY_KEYS,
+  SECRET_KEYS,
+  type SettingKey,
+} from "@/lib/settings";
 
 /* ---------------- Giriş ---------------- */
 
@@ -119,6 +106,11 @@ const productSchema = z.object({
   isActive: z.boolean(),
   isNew: z.boolean(),
   isTrend: z.boolean(),
+  colorName: z.string().trim().max(40),
+  colorHex: z.string().trim().regex(/^(#[0-9a-fA-F]{6})?$/, "Renk kodu #RRGGBB biçiminde olmalı."),
+  groupCode: z.string().trim().max(60),
+  metaTitle: z.string().trim().max(120),
+  metaDescription: z.string().trim().max(320),
   images: z.array(z.string().startsWith("/").or(z.url())).max(20),
   variants: z
     .array(
@@ -130,14 +122,6 @@ const productSchema = z.object({
     )
     .min(1, "En az bir beden/varyant ekleyin."),
 });
-
-function parseJson(value: FormDataEntryValue | null) {
-  try {
-    return JSON.parse(String(value ?? "[]"));
-  } catch {
-    return [];
-  }
-}
 
 export async function saveProduct(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireAdmin();
@@ -154,6 +138,11 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
     isActive: checkbox(formData, "isActive"),
     isNew: checkbox(formData, "isNew"),
     isTrend: checkbox(formData, "isTrend"),
+    colorName: str(formData, "colorName"),
+    colorHex: str(formData, "colorHex"),
+    groupCode: str(formData, "groupCode"),
+    metaTitle: str(formData, "metaTitle"),
+    metaDescription: str(formData, "metaDescription"),
     images: parseJson(formData.get("images")),
     variants: parseJson(formData.get("variants")),
   });
@@ -182,6 +171,11 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
     isActive: d.isActive,
     isNew: d.isNew,
     isTrend: d.isTrend,
+    colorName: d.colorName,
+    colorHex: d.colorHex,
+    groupCode: d.groupCode,
+    metaTitle: d.metaTitle,
+    metaDescription: d.metaDescription,
     updatedAt: new Date(),
   };
 
@@ -234,6 +228,55 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
   return { ok: true, message: "Ürün kaydedildi." };
 }
 
+/** Ürünü (ör. yeni bir renk için) kopyalar; kopya satış dışı ve stoksuz başlar. */
+export async function duplicateProduct(formData: FormData) {
+  await requireAdmin();
+  const id = idFrom(formData);
+  if (!id) return;
+  const source = await db.query.products.findFirst({
+    where: eq(products.id, id),
+    with: { images: true, variants: true, categoryLinks: true },
+  });
+  if (!source) return;
+  const slug = await uniqueSlug(products, `${source.slug}-kopya`, null);
+
+  const newId = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(products)
+      .values({
+        name: `${source.name} (Kopya)`,
+        slug,
+        code: source.code,
+        description: source.description,
+        price: source.price,
+        comparePrice: source.comparePrice,
+        categoryId: source.categoryId,
+        isActive: false,
+        isNew: source.isNew,
+        isTrend: source.isTrend,
+        groupCode: source.groupCode,
+      })
+      .returning({ id: products.id });
+    if (source.images.length) {
+      await tx
+        .insert(productImages)
+        .values(source.images.map((i) => ({ productId: row.id, url: i.url, sortOrder: i.sortOrder })));
+    }
+    if (source.variants.length) {
+      await tx
+        .insert(productVariants)
+        .values(source.variants.map((v) => ({ productId: row.id, size: v.size, stock: 0, sortOrder: v.sortOrder })));
+    }
+    if (source.categoryLinks.length) {
+      await tx
+        .insert(productCategories)
+        .values(source.categoryLinks.map((c) => ({ productId: row.id, categoryId: c.categoryId })));
+    }
+    return row.id;
+  });
+  redirect(`/admin/urunler/${newId}?kopyalandi=1`);
+}
+
 export async function deleteProduct(formData: FormData) {
   await requireAdmin();
   const id = idFrom(formData);
@@ -246,10 +289,6 @@ export async function deleteProduct(formData: FormData) {
     if (variantIds.length) {
       await tx.update(orderItems).set({ variantId: null }).where(inArray(orderItems.variantId, variantIds));
     }
-    await tx.delete(productVariants).where(eq(productVariants.productId, id));
-    await tx.delete(productImages).where(eq(productImages.productId, id));
-    await tx.delete(productCategories).where(eq(productCategories.productId, id));
-    await tx.delete(reviews).where(eq(reviews.productId, id));
     await tx.delete(products).where(eq(products.id, id));
   });
   refreshStore();
@@ -278,6 +317,8 @@ const categorySchema = z.object({
   showInMenu: z.boolean(),
   highlight: z.boolean(),
   description: z.string().trim().max(1000),
+  imageUrl: z.string().trim().max(500),
+  metaTitle: z.string().trim().max(120),
 });
 
 export async function saveCategory(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -291,6 +332,8 @@ export async function saveCategory(_prev: FormState, formData: FormData): Promis
     showInMenu: checkbox(formData, "showInMenu"),
     highlight: checkbox(formData, "highlight"),
     description: str(formData, "description"),
+    imageUrl: str(formData, "imageUrl"),
+    metaTitle: str(formData, "metaTitle"),
   });
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
   const d = parsed.data;
@@ -334,6 +377,7 @@ export async function deleteCategory(formData: FormData) {
 
 const bannerSchema = z.object({
   placement: z.enum(BANNER_PLACEMENTS),
+  style: z.enum(BANNER_STYLES),
   title: z.string().trim().max(120),
   subtitle: z.string().trim().max(200),
   buttonText: z.string().trim().max(40),
@@ -350,6 +394,7 @@ export async function saveBanner(_prev: FormState, formData: FormData): Promise<
   const id = idFrom(formData);
   const parsed = bannerSchema.safeParse({
     placement: str(formData, "placement"),
+    style: str(formData, "style") || "auto",
     title: str(formData, "title"),
     subtitle: str(formData, "subtitle"),
     buttonText: str(formData, "buttonText"),
@@ -421,10 +466,7 @@ export async function setReviewApproval(formData: FormData) {
   await requireAdmin();
   const id = idFrom(formData);
   if (!id) return;
-  await db
-    .update(reviews)
-    .set({ isApproved: formData.get("approve") === "1" })
-    .where(eq(reviews.id, id));
+  await db.update(reviews).set({ isApproved: formData.get("approve") === "1" }).where(eq(reviews.id, id));
   refreshStore();
   revalidatePath("/admin/yorumlar");
 }
@@ -437,14 +479,14 @@ export async function deleteReview(formData: FormData) {
   revalidatePath("/admin/yorumlar");
 }
 
-/* ---------------- Siparişler ---------------- */
+/* ---------------- Sipariş durumu ---------------- */
 
 const orderUpdateSchema = z.object({
   status: z.enum(ORDER_STATUSES),
   paymentStatus: z.enum(PAYMENT_STATUSES),
   cargoCompany: z.string().trim().max(60),
   trackingNo: z.string().trim().max(80),
-  adminNote: z.string().trim().max(2000),
+  adminNote: z.string().trim().max(5000),
 });
 
 export async function updateOrder(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -466,86 +508,153 @@ export async function updateOrder(_prev: FormState, formData: FormData): Promise
   if (order.status === "cancelled" && d.status !== "cancelled") {
     return { ok: false, message: "İptal edilmiş bir sipariş yeniden açılamaz; yeni sipariş oluşturun." };
   }
+  if (d.status === "awaiting_payment" && order.status !== "awaiting_payment") {
+    return { ok: false, message: "Sipariş 'Ödeme Bekleniyor' durumuna geri alınamaz." };
+  }
 
+  const cancelling = d.status === "cancelled" && !order.stockRestored;
   await db.transaction(async (tx) => {
-    if (d.status === "cancelled" && !order.stockRestored) {
-      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-      for (const item of items) {
-        if (!item.variantId) continue;
-        await tx
-          .update(productVariants)
-          .set({ stock: sql`${productVariants.stock} + ${item.quantity}` })
-          .where(eq(productVariants.id, item.variantId));
-      }
+    if (cancelling) {
+      await restoreStock(tx, order.id);
+      await releaseCoupon(tx, order.couponCode);
     }
     await tx
       .update(orders)
       .set({
         ...d,
         stockRestored: order.stockRestored || d.status === "cancelled",
+        paidAt: d.paymentStatus === "paid" && !order.paidAt ? new Date() : order.paidAt,
         updatedAt: new Date(),
       })
       .where(eq(orders.id, order.id));
   });
 
+  after(() => notifyOrderUpdated(order.id, { status: order.status, paymentStatus: order.paymentStatus }));
   refreshStore();
   return {
     ok: true,
-    message:
-      d.status === "cancelled" && !order.stockRestored
-        ? "Sipariş iptal edildi, ürün stokları geri eklendi."
-        : "Sipariş güncellendi.",
+    message: cancelling ? "Sipariş iptal edildi, ürün stokları geri eklendi." : "Sipariş güncellendi.",
   };
 }
 
 /* ---------------- Ayarlar ---------------- */
 
-const MONEY_KEYS: SettingKey[] = ["freeShippingThreshold", "shippingFee", "codFee"];
-const BOOLEAN_KEYS: SettingKey[] = ["paymentBankTransfer", "paymentCashOnDelivery"];
+const INT_RANGES: Partial<Record<SettingKey, [number, number]>> = {
+  cartDiscountPercent: [0, 90],
+  logoHeight: [16, 160],
+  heroInterval: [2, 60],
+  newCount: [1, 48],
+  trendCount: [1, 48],
+  smtpPort: [1, 65535],
+};
+const CHOICES: Partial<Record<SettingKey, readonly string[]>> = {
+  emailProvider: ["none", "resend", "smtp"],
+  fontBody: Object.keys(BODY_FONTS),
+  fontLogo: Object.keys(LOGO_FONTS),
+};
+const EMAIL_KEYS: SettingKey[] = ["emailFromAddress", "adminNotifyEmail"];
+const URL_KEYS: SettingKey[] = ["siteUrl", "instagram", "facebook", "tiktok", "youtube", "twitter", "pinterest"];
 
+function validateSetting(key: SettingKey, raw: string): { value: string } | { error: string } {
+  let value = raw;
+  if (MONEY_KEYS.includes(key)) {
+    const kurus = parsePrice(value || "0");
+    return kurus == null ? { error: "Geçerli bir tutar girin." } : { value: String(kurus) };
+  }
+  if (COLOR_KEYS.includes(key)) {
+    return HEX_COLOR.test(value) ? { value: value.toLowerCase() } : { error: "Renk #RRGGBB biçiminde olmalı." };
+  }
+  const range = INT_RANGES[key];
+  if (range) {
+    const n = Number(value || "0");
+    if (!Number.isInteger(n) || n < range[0] || n > range[1]) {
+      return { error: `${range[0]} ile ${range[1]} arasında bir tam sayı girin.` };
+    }
+    return { value: String(n) };
+  }
+  const choices = CHOICES[key];
+  if (choices && !choices.includes(value)) return { error: "Geçersiz seçim." };
+  if (EMAIL_KEYS.includes(key) && value && !z.email().safeParse(value).success) {
+    return { error: "Geçerli bir e-posta adresi girin." };
+  }
+  if (URL_KEYS.includes(key) && value) {
+    if (!/^https?:\/\/\S+$/i.test(value)) return { error: "Adres http:// veya https:// ile başlamalı." };
+    if (key === "siteUrl") value = value.replace(/\/+$/, "");
+  }
+  if (key === "whatsapp") value = value.replace(/\D/g, "");
+  if (key === "iban") value = value.toUpperCase().replace(/\s+/g, " ");
+  if (key === "googleAnalyticsId" && value && !/^G-[A-Z0-9]{4,20}$/i.test(value)) {
+    return { error: "Ölçüm kimliği G-XXXXXXX biçiminde olmalı." };
+  }
+  if (key === "metaPixelId" && value && !/^\d{6,20}$/.test(value)) return { error: "Pixel ID yalnızca rakamlardan oluşur." };
+  if (key === "homeSections") {
+    try {
+      const list = JSON.parse(value) as { key: string; enabled: boolean }[];
+      if (!Array.isArray(list) || list.some((s) => !(s.key in HOME_SECTIONS))) throw new Error();
+      value = JSON.stringify(list.map((s) => ({ key: s.key, enabled: !!s.enabled })));
+    } catch {
+      return { error: "Bölüm listesi okunamadı." };
+    }
+  }
+  if (key === "infoBar") {
+    try {
+      const list = JSON.parse(value) as { icon: string; text: string }[];
+      if (!Array.isArray(list) || list.length > 6) throw new Error();
+      value = JSON.stringify(
+        list
+          .filter((i) => typeof i.text === "string" && i.text.trim())
+          .map((i) => ({ icon: i.icon in INFO_ICONS ? i.icon : "shield", text: i.text.trim().slice(0, 60) })),
+      );
+    } catch {
+      return { error: "Bilgi şeridi okunamadı (en fazla 6 öğe)." };
+    }
+  }
+  return { value };
+}
+
+/** Her ayar formu, kaydettiği anahtarları gizli "__keys" alanında listeler. */
 export async function saveSettings(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireAdmin();
+  const keys = str(formData, "__keys")
+    .split(",")
+    .filter((k): k is SettingKey => k in DEFAULT_SETTINGS);
   const rows: { key: string; value: string }[] = [];
   const errors: Record<string, string> = {};
 
-  for (const key of Object.keys(DEFAULT_SETTINGS) as SettingKey[]) {
+  for (const key of keys) {
     if (BOOLEAN_KEYS.includes(key)) {
       rows.push({ key, value: checkbox(formData, key) ? "1" : "0" });
       continue;
     }
     if (!formData.has(key)) continue;
-    let value = str(formData, key);
-    if (MONEY_KEYS.includes(key)) {
-      const kurus = parsePrice(value || "0");
-      if (kurus == null) {
-        errors[key] = "Geçerli bir tutar girin.";
-        continue;
-      }
-      value = String(kurus);
-    } else if (key === "cartDiscountPercent") {
-      const n = Number(value || "0");
-      if (!Number.isInteger(n) || n < 0 || n > 90) {
-        errors[key] = "0 ile 90 arasında bir tam sayı girin.";
-        continue;
-      }
-      value = String(n);
-    } else if (key === "whatsapp") {
-      value = value.replace(/\D/g, "");
-    } else if (key === "iban") {
-      value = value.toUpperCase().replace(/\s+/g, " ");
+    const raw = String(formData.get(key) ?? "").trim();
+    if (SECRET_KEYS.includes(key)) {
+      // Boş bırakılan gizli alan mevcut değeri korur; "temizle" işaretliyse silinir.
+      if (checkbox(formData, `${key}__clear`)) rows.push({ key, value: "" });
+      else if (raw) rows.push({ key, value: raw });
+      continue;
     }
-    rows.push({ key, value });
+    const result = validateSetting(key, raw);
+    if ("error" in result) errors[key] = result.error;
+    else rows.push({ key, value: result.value });
   }
 
   if (Object.keys(errors).length) return { ok: false, errors, message: "Lütfen işaretli alanları kontrol edin." };
-  if (!rows.some((r) => BOOLEAN_KEYS.includes(r.key as SettingKey) && r.value === "1")) {
-    return { ok: false, message: "En az bir ödeme yöntemi aktif olmalı." };
+
+  if (keys.includes("paymentBankTransfer") || keys.includes("paymentCashOnDelivery")) {
+    const current = await getSettings();
+    const next = { ...current, ...Object.fromEntries(rows.map((r) => [r.key, r.value])) };
+    if (enabledBuiltinMethods(next).length === 0 && (await getEnabledProviders()).length === 0) {
+      return { ok: false, message: "En az bir ödeme yöntemi aktif olmalı." };
+    }
   }
 
-  await db
-    .insert(settings)
-    .values(rows)
-    .onConflictDoUpdate({ target: settings.key, set: { value: sql`excluded.value` } });
+  if (rows.length) {
+    await db
+      .insert(settings)
+      .values(rows)
+      .onConflictDoUpdate({ target: settings.key, set: { value: sql`excluded.value` } });
+  }
   refreshStore();
   return { ok: true, message: "Ayarlar kaydedildi." };
 }

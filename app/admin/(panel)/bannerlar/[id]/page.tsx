@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -11,6 +12,7 @@ import { banners } from "@/lib/db/schema";
 export const metadata: Metadata = { title: "Banner Düzenle" };
 
 export default async function EditBannerPage({ params }: PageProps<"/admin/bannerlar/[id]">) {
+  await requireAdmin();
   const { id } = await params;
   const [banner] = await db.select().from(banners).where(eq(banners.id, Number(id) || 0)).limit(1);
   if (!banner) notFound();

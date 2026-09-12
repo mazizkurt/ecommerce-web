@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 import { formatPrice } from "@/lib/format";
 import { cartPrice, discountRate } from "@/lib/pricing";
 import type { ProductCardData } from "@/lib/queries";
-import { AddToCartCardButton, FavoriteButton } from "./product-card-actions";
+import { AddToCartCardButton, CartPriceLabel, FavoriteButton } from "./product-card-actions";
 
 const CARD_SIZES =
   "(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, 50vw";
@@ -51,7 +51,7 @@ export function ProductCard({
           )}
         </Link>
         {rate > 0 && (
-          <span className="absolute left-0 top-0 z-10 flex size-10 items-center justify-center bg-black text-xs font-medium text-white">
+          <span className="absolute left-0 top-0 z-10 flex size-10 items-center justify-center bg-brand text-xs font-medium text-brand-text">
             %{rate}
           </span>
         )}
@@ -96,7 +96,7 @@ export function ProductCard({
         </div>
         {hasBasketPrice && (
           <div className="mt-auto flex flex-col items-center border-y border-line py-[5px] text-[13px] leading-5">
-            Sepetteki Fiyat
+            <CartPriceLabel />
             <span className="text-[15px] font-medium">{formatPrice(basket)}</span>
           </div>
         )}

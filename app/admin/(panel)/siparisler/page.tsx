@@ -1,8 +1,10 @@
 import { and, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge, btnSecondary, EmptyState, inputCls, PageHeader, Table } from "@/components/admin/ui";
+import { Badge, btnPrimary, btnSecondary, EmptyState, inputCls, PageHeader, Table } from "@/components/admin/ui";
+import { requireAdmin } from "@/lib/auth";
+import { expireStalePayments } from "@/lib/orders";
 import { cn } from "@/lib/cn";
 import {
   ORDER_STATUS_LABELS,
@@ -20,6 +22,8 @@ const PER_PAGE = 30;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
 export default async function OrdersPage({ searchParams }: PageProps<"/admin/siparisler">) {
+  await requireAdmin();
+  await expireStalePayments();
   const sp = await searchParams;
   const status = ORDER_STATUSES.includes(one(sp.durum) as OrderStatus) ? (one(sp.durum) as OrderStatus) : null;
   const q = one(sp.q).trim();
@@ -66,7 +70,15 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/sip
 
   return (
     <>
-      <PageHeader title="Siparişler" description={`${all} sipariş`} />
+      <PageHeader
+        title="Siparişler"
+        description={`${all} sipariş`}
+        actions={
+          <Link href="/admin/siparisler/yeni" className={btnPrimary}>
+            <Plus className="size-4" /> Yeni Sipariş
+          </Link>
+        }
+      />
 
       <div className="mb-4 flex flex-wrap gap-1.5">
         {[{ key: null, label: "Tümü", n: all }, ...ORDER_STATUSES.map((s) => ({

@@ -17,6 +17,7 @@ export function ImageUploader({
   accept = "image/jpeg,image/png,image/webp,image/avif",
   aspect = "aspect-[2/3]",
   label = "Görsel yükle",
+  fit = "cover",
 }: {
   name: string;
   initial: string[];
@@ -24,6 +25,7 @@ export function ImageUploader({
   accept?: string;
   aspect?: string;
   label?: string;
+  fit?: "cover" | "contain";
 }) {
   const [urls, setUrls] = useState(initial.filter(Boolean));
   const [uploading, setUploading] = useState(false);
@@ -65,10 +67,10 @@ export function ImageUploader({
         {urls.map((url, i) => (
           <div key={url + i} className={cn("group relative overflow-hidden rounded-md border border-zinc-200 bg-zinc-50", aspect)}>
             {isVideo(url) ? (
-              <video src={url} muted className="size-full object-cover" />
+              <video src={url} muted className={cn("size-full", fit === "contain" ? "object-contain" : "object-cover")} />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={url} alt="" className="size-full object-cover" />
+              <img src={url} alt="" className={cn("size-full", fit === "contain" ? "object-contain p-2" : "object-cover")} />
             )}
             {multiple && i === 0 && (
               <span className="absolute left-1.5 top-1.5 rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-white">

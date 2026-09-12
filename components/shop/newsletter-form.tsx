@@ -4,17 +4,15 @@ import { Mail } from "lucide-react";
 import { useActionState } from "react";
 import { type FormState, subscribeNewsletter } from "@/lib/actions/shop";
 
-export function Newsletter() {
+export function Newsletter({ title, text }: { title: string; text: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(
     subscribeNewsletter,
     {},
   );
   return (
     <section className="flex flex-col items-center justify-center bg-soft px-6 py-16 text-center md:px-12 md:py-[100px]">
-      <h2 className="mb-5 text-xl font-semibold text-[#222]">E-BÜLTEN ABONELİĞİ</h2>
-      <p className="mb-4 text-sm">
-        Kampanya, duyuru, bilgilendirmelerden e-posta ile haberdar olmak istiyorum.
-      </p>
+      {title && <h2 className="mb-5 text-xl font-semibold text-[#222]">{title}</h2>}
+      {text && <p className="mb-4 text-sm">{text}</p>}
       <form action={action} className="relative w-full max-w-[500px]">
         <input
           type="email"

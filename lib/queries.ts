@@ -252,6 +252,22 @@ export const getProductBySlug = cache(async (slug: string) => {
   return product ?? null;
 });
 
+/** Aynı renk grubundaki (groupCode) diğer renk ürünleri. */
+export async function getColorSiblings(groupCode: string) {
+  if (!groupCode) return [];
+  return db
+    .select({
+      id: products.id,
+      slug: products.slug,
+      colorName: products.colorName,
+      colorHex: products.colorHex,
+      image: sql<string | null>`(select i.url from product_images i where i.product_id = ${products.id} order by i.sort_order, i.id limit 1)`,
+    })
+    .from(products)
+    .where(and(eq(products.groupCode, groupCode), eq(products.isActive, true)))
+    .orderBy(asc(products.id));
+}
+
 export async function getProductReviews(productId: number) {
   return db
     .select()

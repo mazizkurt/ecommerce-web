@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { requestPasswordReset, resetPassword } from "@/lib/actions/account";
 import {
   type FormState,
   loginCustomer,
@@ -34,7 +35,7 @@ function Submit({ pending, children }: { pending: boolean; children: React.React
     <button
       type="submit"
       disabled={pending}
-      className="h-11 w-full bg-black text-sm font-medium text-white transition-colors hover:bg-cart-hover disabled:opacity-60"
+      className="h-11 w-full bg-brand text-sm font-medium text-brand-text transition-colors hover:bg-cart-hover disabled:opacity-60"
     >
       {pending ? "Lütfen bekleyin..." : children}
     </button>
@@ -65,6 +66,32 @@ export function RegisterForm({ next }: { next?: string }) {
       <Input label="Cep Telefonu (isteğe bağlı)" name="phone" type="tel" autoComplete="tel" defaultValue={state.values?.phone} error={e.phone} />
       <Input label="Şifre (en az 8 karakter)" name="password" type="password" autoComplete="new-password" error={e.password} />
       <Submit pending={pending}>ÜYE OL</Submit>
+    </form>
+  );
+}
+
+export function ForgotPasswordForm() {
+  const [state, action, pending] = useActionState<FormState, FormData>(requestPasswordReset, {});
+  if (state.ok) return <p className="bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{state.message}</p>;
+  return (
+    <form action={action} className="space-y-4">
+      <Input label="E-posta" name="email" type="email" autoComplete="email" required defaultValue={state.values?.email} />
+      {state.message && <p className="text-[13px] text-red-600">{state.message}</p>}
+      <Submit pending={pending}>SIFIRLAMA BAĞLANTISI GÖNDER</Submit>
+    </form>
+  );
+}
+
+export function ResetPasswordForm({ token }: { token: string }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(resetPassword, {});
+  const e = state.errors ?? {};
+  return (
+    <form action={action} className="space-y-4">
+      <input type="hidden" name="token" value={token} />
+      <Input label="Yeni şifre (en az 8 karakter)" name="password" type="password" autoComplete="new-password" error={e.password} />
+      <Input label="Yeni şifre (tekrar)" name="confirm" type="password" autoComplete="new-password" error={e.confirm} />
+      {state.message && <p className="text-[13px] text-red-600">{state.message}</p>}
+      <Submit pending={pending}>ŞİFREMİ GÜNCELLE</Submit>
     </form>
   );
 }

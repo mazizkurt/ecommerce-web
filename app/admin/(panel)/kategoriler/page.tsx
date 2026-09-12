@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { count } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -11,6 +12,7 @@ import { getAllCategories } from "@/lib/queries";
 export const metadata: Metadata = { title: "Kategoriler" };
 
 export default async function CategoriesPage() {
+  await requireAdmin();
   const [all, counts] = await Promise.all([
     getAllCategories(),
     db

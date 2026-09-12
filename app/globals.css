@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
+/* --body-font / --logo-font ve marka renkleri panelden seçilir (lib/settings.ts → themeCss). */
 @theme inline {
-  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
-  --font-logo: var(--font-bodoni), "Didot", Georgia, serif;
+  --font-sans: var(--body-font), ui-sans-serif, system-ui, sans-serif;
+  --font-logo: var(--logo-font), "Didot", Georgia, serif;
   --font-display: var(--font-josefin), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -11,6 +12,10 @@
   --color-line-strong: #dddddd;
   --color-card: #e0e0e0;
   --color-soft: #f4f4f4;
+  --color-brand: #000000;
+  --color-brand-text: #ffffff;
+  --color-announce-bg: #000000;
+  --color-announce-text: #ffffff;
   --color-cart-hover: #4dc760;
   --color-badge: #db2534;
   --color-accent: #e5645f;
@@ -53,6 +58,10 @@
 }
 
 @layer base {
+  :root {
+    --body-font: var(--font-roboto);
+    --logo-font: var(--font-bodoni);
+  }
   body {
     background: #fff;
     color: #000;

@@ -1,13 +1,8 @@
 "use client";
 
-import {
-  ChevronLeft,
-  ChevronRight,
-  Share2,
-  Star,
-  Truck,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Share2, Star, Truck } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { WhatsAppIcon } from "@/components/icons";
@@ -95,10 +90,7 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
             </button>
             <div className="absolute inset-x-0 bottom-3 flex justify-center gap-1.5 md:hidden">
               {images.map((_, i) => (
-                <span
-                  key={i}
-                  className={cn("size-1.5 rounded-full", i === index ? "bg-black" : "bg-black/25")}
-                />
+                <span key={i} className={cn("size-1.5 rounded-full", i === index ? "bg-black" : "bg-black/25")} />
               ))}
             </div>
           </>
@@ -112,16 +104,19 @@ export function Stars({ rating, className }: { rating: number; className?: strin
   return (
     <span className={cn("flex gap-0.5", className)} aria-label={`5 üzerinden ${rating.toFixed(1)}`}>
       {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          className="size-4"
-          fill={i < Math.round(rating) ? "currentColor" : "none"}
-          strokeWidth={1.5}
-        />
+        <Star key={i} className="size-4" fill={i < Math.round(rating) ? "currentColor" : "none"} strokeWidth={1.5} />
       ))}
     </span>
   );
 }
+
+export type ColorOption = {
+  slug: string;
+  colorName: string;
+  colorHex: string;
+  image: string | null;
+  current: boolean;
+};
 
 export function BuyBox({
   product,
@@ -129,21 +124,25 @@ export function BuyBox({
   rating,
   reviewCount,
   whatsapp,
+  whatsappMessage,
   siteUrl,
+  colorName,
+  colors,
 }: {
   product: ProductCardData;
   code: string;
   rating: number;
   reviewCount: number;
   whatsapp: string;
+  whatsappMessage: string;
   siteUrl: string;
+  colorName: string;
+  colors: ColorOption[];
 }) {
   const router = useRouter();
-  const { pricing, addVariant } = useCartUI();
+  const { pricing, cartPriceLabel, addVariant } = useCartUI();
   const single = product.variants.length === 1 ? product.variants[0] : null;
-  const [selected, setSelected] = useState<number | null>(
-    single && single.stock > 0 ? single.id : null,
-  );
+  const [selected, setSelected] = useState<number | null>(single && single.stock > 0 ? single.id : null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -163,7 +162,12 @@ export function BuyBox({
 
   const productUrl = `${siteUrl}/urun/${product.slug}`;
   const waText = encodeURIComponent(
-    `Merhaba, bu ürünü sipariş etmek istiyorum:\n${product.name}${variant ? ` - Beden: ${variant.size}` : ""}\n${productUrl}`,
+    whatsappMessage
+      .replaceAll("{urun}", product.name)
+      .replaceAll("{beden}", variant ? `- Beden: ${variant.size}` : "")
+      .replaceAll("{kod}", code)
+      .replaceAll("{link}", productUrl)
+      .trim(),
   );
 
   const share = async () => {
@@ -182,9 +186,7 @@ export function BuyBox({
   return (
     <div className="lg:pr-2.5">
       <div className="flex items-start gap-4">
-        <h1 className="flex-1 text-lg font-medium leading-snug tracking-[0.06em]">
-          {product.name}
-        </h1>
+        <h1 className="flex-1 text-lg font-medium leading-snug tracking-[0.06em]">{product.name}</h1>
         <div className="flex items-center gap-3 pt-1">
           <FavoriteButton product={product} />
           <button type="button" onClick={share} aria-label="Paylaş" className="relative">
@@ -203,29 +205,59 @@ export function BuyBox({
         {reviewCount > 0 && <span>({reviewCount} yorum)</span>}
       </a>
 
-      {code && (
-        <p className="mt-6 text-[13px] tracking-wider text-[#999]">Ürün Kodu: {code}</p>
-      )}
+      {code && <p className="mt-6 text-[13px] tracking-wider text-[#999]">Ürün Kodu: {code}</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
         {rate > 0 && (
-          <span className="text-[15px] text-[#a3a3a3] line-through">
-            {formatPrice(product.comparePrice!)}
-          </span>
+          <span className="text-[15px] text-[#a3a3a3] line-through">{formatPrice(product.comparePrice!)}</span>
         )}
         <span className={cn("text-2xl font-medium", basket < product.price && "line-through")}>
           {formatPrice(product.price)}
         </span>
         {rate > 0 && (
-          <span className="flex h-7 items-center bg-black px-3 text-sm font-medium text-white">
+          <span className="flex h-7 items-center bg-brand px-3 text-sm font-medium text-brand-text">
             %{rate} İndirim
           </span>
         )}
       </div>
       {basket < product.price && (
         <div className="mt-3 inline-flex items-center gap-2 border border-line px-3 py-2.5 text-accent">
-          <span className="text-sm font-medium">Sepetteki Fiyat</span>
+          <span className="text-sm font-medium">{cartPriceLabel}</span>
           <span className="text-xl font-medium">{formatPrice(basket)}</span>
+        </div>
+      )}
+
+      {colors.length > 1 && (
+        <div className="mt-6">
+          <p className="text-base font-medium">
+            Renk: <span className="font-normal">{colorName}</span>
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {colors.map((c) => (
+              <Link
+                key={c.slug}
+                href={`/urun/${c.slug}`}
+                title={c.colorName}
+                aria-current={c.current ? "true" : undefined}
+                className={cn(
+                  "relative block size-9 overflow-hidden rounded-full border-2 p-0.5",
+                  c.current ? "border-black" : "border-transparent hover:border-zinc-300",
+                )}
+              >
+                {c.colorHex ? (
+                  <span className="block size-full rounded-full border border-black/10" style={{ background: c.colorHex }} />
+                ) : c.image ? (
+                  <span className="relative block size-full overflow-hidden rounded-full">
+                    <Image src={c.image} alt={c.colorName} fill sizes="36px" className="object-cover" />
+                  </span>
+                ) : (
+                  <span className="flex size-full items-center justify-center rounded-full bg-soft text-[9px]">
+                    {c.colorName.slice(0, 3)}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 
@@ -245,9 +277,7 @@ export function BuyBox({
               title={v.stock <= 0 ? "Tükendi" : undefined}
               className={cn(
                 "flex h-[30px] min-w-[30px] items-center justify-center border px-2 text-sm transition-colors",
-                selected === v.id
-                  ? "border-black bg-black text-white"
-                  : "border-[#ccc] hover:border-black",
+                selected === v.id ? "border-brand bg-brand text-brand-text" : "border-[#ccc] hover:border-black",
                 v.stock <= 0 && "cursor-not-allowed text-zinc-300 line-through hover:border-[#ccc]",
               )}
             >
@@ -255,9 +285,7 @@ export function BuyBox({
             </button>
           ))}
         </div>
-        {variant && variant.stock <= 3 && (
-          <p className="mt-2 text-[13px] text-red-600">Son {variant.stock} ürün!</p>
-        )}
+        {variant && variant.stock <= 3 && <p className="mt-2 text-[13px] text-red-600">Son {variant.stock} ürün!</p>}
         {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
       </div>
 
@@ -266,7 +294,7 @@ export function BuyBox({
           type="button"
           disabled={!inStock}
           onClick={() => add(false)}
-          className="h-[45px] w-full border border-black bg-black text-base font-medium text-white transition-colors hover:bg-white hover:text-black disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-white"
+          className="h-[45px] w-full border border-brand bg-brand text-base font-medium text-brand-text transition-colors hover:bg-white hover:text-brand disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-white"
         >
           {inStock ? "SEPETE EKLE" : "TÜKENDİ"}
         </button>
@@ -274,7 +302,7 @@ export function BuyBox({
           <button
             type="button"
             onClick={() => add(true)}
-            className="h-[45px] w-full border border-black bg-[#f4f4f5] text-base font-medium transition-colors hover:bg-[#e8e8e8]"
+            className="h-[45px] w-full border border-brand bg-[#f4f4f5] text-base font-medium transition-colors hover:bg-[#e8e8e8]"
           >
             HEMEN AL
           </button>

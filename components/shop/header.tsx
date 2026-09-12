@@ -20,22 +20,40 @@ import { cn } from "@/lib/cn";
 import type { CategoryNode } from "@/lib/queries";
 import { useCartUI, useLockBodyScroll } from "./cart-ui";
 
+export type Branding = { logoText: string; logoUrl: string; logoHeight: number };
+
 type HeaderProps = {
   menu: CategoryNode[];
-  logoText: string;
+  branding: Branding;
   whatsapp: string;
 };
 
-export function Logo({ text, className }: { text: string; className?: string }) {
+export function Logo({
+  branding,
+  maxHeight,
+  className,
+}: {
+  branding: Branding;
+  maxHeight?: number;
+  className?: string;
+}) {
   return (
     <Link
       href="/"
-      className={cn(
-        "font-logo leading-none tracking-[0.16em] text-black",
-        className,
-      )}
+      className={cn("flex items-center font-logo leading-none tracking-[0.16em] text-black", className)}
     >
-      {text}
+      {branding.logoUrl ? (
+        // Yüklenen logonun boyutu bilinmediği için düz <img>; yükseklik panelden ayarlanır.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={branding.logoUrl}
+          alt={branding.logoText}
+          style={{ maxHeight: maxHeight ?? branding.logoHeight }}
+          className="h-auto w-auto max-w-full"
+        />
+      ) : (
+        branding.logoText
+      )}
     </Link>
   );
 }
@@ -44,7 +62,7 @@ function CountBadge({ count, className }: { count: number; className?: string })
   return (
     <span
       className={cn(
-        "absolute -right-2.5 -top-2.5 flex size-[18px] items-center justify-center rounded-full text-[11px] leading-none text-white",
+        "absolute -right-2.5 -top-2.5 flex size-[18px] items-center justify-center rounded-full text-[11px] leading-none",
         className,
       )}
     >
@@ -53,7 +71,7 @@ function CountBadge({ count, className }: { count: number; className?: string })
   );
 }
 
-export function Header({ menu, logoText, whatsapp }: HeaderProps) {
+export function Header({ menu, branding, whatsapp }: HeaderProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const items = useCartItems();
@@ -65,7 +83,7 @@ export function Header({ menu, logoText, whatsapp }: HeaderProps) {
       {/* Masaüstü */}
       <div className="hidden h-20 grid-cols-[1fr_4fr_1fr] lg:grid">
         <div className="flex items-center border-r border-line-strong pl-8">
-          <Logo text={logoText} className="text-[34px]" />
+          <Logo branding={branding} maxHeight={Math.min(branding.logoHeight, 64)} className="text-[34px]" />
         </div>
         <nav aria-label="Ana menü" className="flex items-center justify-center">
           <ul className="flex flex-wrap items-center justify-center gap-x-[30px]">
@@ -75,13 +93,11 @@ export function Header({ menu, logoText, whatsapp }: HeaderProps) {
                   href={`/kategori/${item.slug}`}
                   className={cn(
                     "relative flex items-center gap-1 text-[15px] font-medium text-black after:absolute after:-bottom-0.5 after:left-0 after:h-px after:w-0 after:bg-black after:transition-all after:duration-300 group-hover:after:w-full",
-                    item.highlight && "animate-blink text-red-600",
+                    item.highlight && "animate-blink text-badge",
                   )}
                 >
                   {item.name}
-                  {item.children.length > 0 && (
-                    <ChevronDown className="size-3.5" strokeWidth={2} />
-                  )}
+                  {item.children.length > 0 && <ChevronDown className="size-3.5" strokeWidth={2} />}
                 </Link>
                 {item.children.length > 0 && (
                   <ul className="invisible absolute left-0 top-full z-50 w-[170px] translate-y-5 bg-white py-1 opacity-0 shadow-[1px_1px_3px_0_#dcdcdc] transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
@@ -102,11 +118,7 @@ export function Header({ menu, logoText, whatsapp }: HeaderProps) {
           </ul>
         </nav>
         <div className="flex items-center justify-end gap-6 border-l border-line-strong pr-8">
-          <button
-            type="button"
-            onClick={() => setSearchOpen((v) => !v)}
-            aria-label="Ara"
-          >
+          <button type="button" onClick={() => setSearchOpen((v) => !v)} aria-label="Ara">
             <Search className="size-6" strokeWidth={1.5} />
           </button>
           <Link href="/favoriler" aria-label="Favorilerim">
@@ -115,14 +127,9 @@ export function Header({ menu, logoText, whatsapp }: HeaderProps) {
           <Link href="/hesabim" aria-label="Hesabım">
             <User className="size-6" strokeWidth={1.5} />
           </Link>
-          <button
-            type="button"
-            onClick={openCart}
-            aria-label="Sepetim"
-            className="relative"
-          >
+          <button type="button" onClick={openCart} aria-label="Sepetim" className="relative">
             <ShoppingCart className="size-6" strokeWidth={1.5} />
-            <CountBadge count={count} className="bg-badge" />
+            <CountBadge count={count} className="bg-badge text-white" />
           </button>
         </div>
       </div>
@@ -137,26 +144,17 @@ export function Header({ menu, logoText, whatsapp }: HeaderProps) {
           <Menu className="size-6" strokeWidth={1.8} />
           Menü
         </button>
-        <Logo text={logoText} className="text-2xl" />
+        <Logo branding={branding} maxHeight={Math.min(branding.logoHeight, 38)} className="text-2xl" />
         <div className="flex items-center gap-4 justify-self-end">
           <Link href="/hesabim" aria-label="Hesabım">
             <User className="size-6" strokeWidth={1.5} />
           </Link>
-          <button
-            type="button"
-            onClick={() => setSearchOpen((v) => !v)}
-            aria-label="Ara"
-          >
+          <button type="button" onClick={() => setSearchOpen((v) => !v)} aria-label="Ara">
             <Search className="size-6" strokeWidth={1.5} />
           </button>
-          <button
-            type="button"
-            onClick={openCart}
-            aria-label="Sepetim"
-            className="relative mr-1"
-          >
+          <button type="button" onClick={openCart} aria-label="Sepetim" className="relative mr-1">
             <ShoppingBag className="size-6" strokeWidth={1.5} />
-            <CountBadge count={count} className="bg-black" />
+            <CountBadge count={count} className="bg-brand text-brand-text" />
           </button>
         </div>
       </div>
@@ -178,7 +176,7 @@ export function Header({ menu, logoText, whatsapp }: HeaderProps) {
             <button
               type="submit"
               aria-label="Ara"
-              className="absolute right-3.5 flex size-[45px] items-center justify-center rounded-full bg-black text-white"
+              className="absolute right-3.5 flex size-[45px] items-center justify-center rounded-full bg-brand text-brand-text"
             >
               <Search className="size-4" />
             </button>
@@ -190,7 +188,7 @@ export function Header({ menu, logoText, whatsapp }: HeaderProps) {
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
         menu={menu}
-        logoText={logoText}
+        branding={branding}
         whatsapp={whatsapp}
       />
     </header>
@@ -201,17 +199,14 @@ function MobileMenu({
   open,
   onClose,
   menu,
-  logoText,
+  branding,
   whatsapp,
 }: HeaderProps & { open: boolean; onClose: () => void }) {
   const [expanded, setExpanded] = useState<number | null>(null);
   useLockBodyScroll(open);
 
   return (
-    <div
-      className={cn("fixed inset-0 z-[60] lg:hidden", !open && "pointer-events-none")}
-      aria-hidden={!open}
-    >
+    <div className={cn("fixed inset-0 z-[60] lg:hidden", !open && "pointer-events-none")} aria-hidden={!open}>
       <div
         className={cn(
           "absolute inset-0 bg-black/50 transition-opacity duration-300",
@@ -227,7 +222,7 @@ function MobileMenu({
         )}
       >
         <div className="flex items-center justify-between border-b border-[#e2e2e2] p-4">
-          <Logo text={logoText} className="text-3xl" />
+          <Logo branding={branding} maxHeight={Math.min(branding.logoHeight, 44)} className="text-3xl" />
           <button type="button" onClick={onClose} aria-label="Menüyü kapat">
             <X className="size-6" strokeWidth={1.5} />
           </button>
@@ -240,11 +235,7 @@ function MobileMenu({
               placeholder="Ara.."
               className="h-11 w-full border border-line bg-soft pl-3 pr-11 text-sm outline-none"
             />
-            <button
-              type="submit"
-              aria-label="Ara"
-              className="absolute right-0 top-0 flex size-11 items-center justify-center"
-            >
+            <button type="submit" aria-label="Ara" className="absolute right-0 top-0 flex size-11 items-center justify-center">
               <Search className="size-4" />
             </button>
           </Form>
@@ -255,28 +246,18 @@ function MobileMenu({
                   <Link
                     href={`/kategori/${item.slug}`}
                     onClick={onClose}
-                    className={cn(
-                      "flex-1 px-4 py-3.5 text-sm font-medium",
-                      item.highlight && "text-red-600",
-                    )}
+                    className={cn("flex-1 px-4 py-3.5 text-sm font-medium", item.highlight && "text-badge")}
                   >
                     {item.name}
                   </Link>
                   {item.children.length > 0 && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setExpanded((v) => (v === item.id ? null : item.id))
-                      }
+                      onClick={() => setExpanded((v) => (v === item.id ? null : item.id))}
                       aria-label={`${item.name} alt kategorileri`}
                       className="px-4 py-3.5"
                     >
-                      <ChevronRight
-                        className={cn(
-                          "size-4 transition-transform",
-                          expanded === item.id && "rotate-90",
-                        )}
-                      />
+                      <ChevronRight className={cn("size-4 transition-transform", expanded === item.id && "rotate-90")} />
                     </button>
                   )}
                 </div>
@@ -284,11 +265,7 @@ function MobileMenu({
                   <ul className="bg-soft pb-2">
                     {item.children.map((child) => (
                       <li key={child.id}>
-                        <Link
-                          href={`/kategori/${child.slug}`}
-                          onClick={onClose}
-                          className="block px-8 py-2.5 text-[13px]"
-                        >
+                        <Link href={`/kategori/${child.slug}`} onClick={onClose} className="block px-8 py-2.5 text-[13px]">
                           {child.name}
                         </Link>
                       </li>

@@ -19,6 +19,7 @@ import type { ProductCardData } from "@/lib/queries";
 
 type CartUI = {
   pricing: PricingSettings;
+  cartPriceLabel: string;
   openCart: () => void;
   closeCart: () => void;
   quickAdd: (product: ProductCardData) => void;
@@ -46,9 +47,11 @@ export function useLockBodyScroll(locked: boolean) {
 
 export function CartUIProvider({
   pricing,
+  cartPriceLabel,
   children,
 }: {
   pricing: PricingSettings;
+  cartPriceLabel: string;
   children: React.ReactNode;
 }) {
   const [cartOpen, setCartOpen] = useState(false);
@@ -92,12 +95,13 @@ export function CartUIProvider({
   const value = useMemo<CartUI>(
     () => ({
       pricing,
+      cartPriceLabel,
       openCart: () => setCartOpen(true),
       closeCart: () => setCartOpen(false),
       quickAdd,
       addVariant,
     }),
-    [pricing, quickAdd, addVariant],
+    [pricing, cartPriceLabel, quickAdd, addVariant],
   );
 
   return (
@@ -170,7 +174,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
             <button
               type="button"
               onClick={onClose}
-              className="h-11 bg-black px-8 text-sm font-medium text-white"
+              className="h-11 bg-brand px-8 text-sm font-medium text-brand-text"
             >
               ALIŞVERİŞE BAŞLA
             </button>
@@ -278,7 +282,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                 <Link
                   href="/odeme"
                   onClick={onClose}
-                  className="flex h-11 items-center justify-center bg-black text-sm font-medium text-white transition-colors hover:bg-cart-hover"
+                  className="flex h-11 items-center justify-center bg-brand text-sm font-medium text-brand-text transition-colors hover:bg-cart-hover"
                 >
                   ÖDEMEYE GEÇ
                 </Link>
@@ -429,7 +433,7 @@ function QuickAddModal({
           type="button"
           disabled={selected == null}
           onClick={() => selected != null && addVariant(product, selected)}
-          className="mt-5 h-11 w-full bg-black text-sm font-medium text-white transition-colors hover:bg-cart-hover disabled:bg-zinc-400"
+          className="mt-5 h-11 w-full bg-brand text-sm font-medium text-brand-text transition-colors hover:bg-cart-hover disabled:bg-zinc-400"
         >
           {selected == null ? "BEDEN SEÇİNİZ" : "SEPETE EKLE"}
         </button>

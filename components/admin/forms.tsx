@@ -1,24 +1,21 @@
 "use client";
 
-import {
-  changePassword,
-  saveBanner,
-  saveCategory,
-  savePage,
-  saveSettings,
-  updateOrder,
-} from "@/lib/actions/admin";
+import { useState } from "react";
+import { changePassword, saveBanner, saveCategory, savePage, updateOrder } from "@/lib/actions/admin";
+import type { FlatCategory } from "@/lib/category-utils";
 import {
   BANNER_PLACEMENT_LABELS,
+  BANNER_STYLE_LABELS,
   CARGO_COMPANIES,
   ORDER_STATUS_LABELS,
   PAGE_GROUP_LABELS,
   PAYMENT_STATUS_LABELS,
 } from "@/lib/constants";
-import type { FlatCategory } from "@/lib/category-utils";
 import {
   BANNER_PLACEMENTS,
+  BANNER_STYLES,
   type BannerPlacement,
+  type BannerStyle,
   ORDER_STATUSES,
   type OrderStatus,
   PAGE_GROUPS,
@@ -26,9 +23,6 @@ import {
   PAYMENT_STATUSES,
   type PaymentStatus,
 } from "@/lib/db/schema";
-import { kurusToInput } from "@/lib/format";
-import type { Settings } from "@/lib/settings";
-import { useState } from "react";
 import { FormMessage, SubmitButton, useAdminAction } from "./form-client";
 import { ImageUploader } from "./image-uploader";
 import { Card, Field, inputCls, textareaCls, Toggle } from "./ui";
@@ -48,6 +42,8 @@ export function CategoryForm({
     showInMenu: boolean;
     highlight: boolean;
     description: string;
+    imageUrl: string;
+    metaTitle: string;
   } | null;
   categories: FlatCategory[];
 }) {
@@ -80,16 +76,17 @@ export function CategoryForm({
           <input name="sortOrder" type="number" defaultValue={category?.sortOrder ?? 0} className={inputCls} />
         </Field>
       </div>
-      <Field label="Açıklama (SEO)">
+      <Field label="Kategori görseli (isteğe bağlı)" hint="Kategori sayfasının üstünde gösterilir. Önerilen 1920×500.">
+        <ImageUploader name="imageUrl" initial={category?.imageUrl ? [category.imageUrl] : []} multiple={false} aspect="aspect-[1920/500]" />
+      </Field>
+      <Field label="SEO başlığı" hint="Boşsa kategori adı kullanılır.">
+        <input name="metaTitle" defaultValue={category?.metaTitle} className={inputCls} />
+      </Field>
+      <Field label="SEO açıklaması">
         <textarea name="description" rows={2} defaultValue={category?.description} className={textareaCls} />
       </Field>
       <Toggle name="showInMenu" label="Menüde göster" defaultChecked={category?.showInMenu ?? true} />
-      <Toggle
-        name="highlight"
-        label="Vurgulu (kırmızı, yanıp sönen)"
-        description="Kampanya kategorileri için."
-        defaultChecked={category?.highlight}
-      />
+      <Toggle name="highlight" label="Vurgulu (renkli, yanıp sönen)" description="Kampanya kategorileri için." defaultChecked={category?.highlight} />
       <FormMessage state={state} />
       <SubmitButton pending={pending}>{category ? "Kaydet" : "Kategori ekle"}</SubmitButton>
     </form>
@@ -104,6 +101,7 @@ export function BannerForm({
   banner: {
     id: number;
     placement: BannerPlacement;
+    style: BannerStyle;
     title: string;
     subtitle: string;
     buttonText: string;
@@ -118,8 +116,7 @@ export function BannerForm({
   const { state, onSubmit, pending } = useAdminAction(saveBanner);
   const [placement, setPlacement] = useState<BannerPlacement>(banner?.placement ?? "hero");
   const e = state.errors ?? {};
-  const desktopHint =
-    placement === "category" ? "Önerilen: 800×1200 (dikey 2:3)" : "Önerilen: 1920×896 (yatay)";
+  const desktopHint = placement === "category" ? "Önerilen: 800×1200 (dikey 2:3)" : "Önerilen: 1920×896 (yatay)";
 
   return (
     <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -137,12 +134,7 @@ export function BannerForm({
             </Field>
             {placement !== "category" && (
               <Field label="Mobil görseli (isteğe bağlı)" hint="Önerilen: 900×1100. Boşsa masaüstü görseli kullanılır.">
-                <ImageUploader
-                  name="mobileImageUrl"
-                  initial={banner?.mobileImageUrl ? [banner.mobileImageUrl] : []}
-                  multiple={false}
-                  aspect="aspect-[9/11]"
-                />
+                <ImageUploader name="mobileImageUrl" initial={banner?.mobileImageUrl ? [banner.mobileImageUrl] : []} multiple={false} aspect="aspect-[9/11]" />
               </Field>
             )}
             {placement === "hero" && (
@@ -161,7 +153,7 @@ export function BannerForm({
         </Card>
         <Card title="Yazılar ve bağlantı">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Başlık" hint="Görselde yazı varsa boş bırakın.">
+            <Field label="Başlık" hint="Görselde yazı varsa boş bırakın veya stili 'Sadece görsel' yapın.">
               <input name="title" defaultValue={banner?.title} className={inputCls} />
             </Field>
             <Field label="Alt başlık">
@@ -180,15 +172,19 @@ export function BannerForm({
         <Card title="Yerleşim">
           <div className="space-y-4">
             <Field label="Konum">
-              <select
-                name="placement"
-                value={placement}
-                onChange={(ev) => setPlacement(ev.target.value as BannerPlacement)}
-                className={inputCls}
-              >
+              <select name="placement" value={placement} onChange={(ev) => setPlacement(ev.target.value as BannerPlacement)} className={inputCls}>
                 {BANNER_PLACEMENTS.map((p) => (
                   <option key={p} value={p}>
                     {BANNER_PLACEMENT_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Yazı stili">
+              <select name="style" defaultValue={banner?.style ?? "auto"} className={inputCls}>
+                {BANNER_STYLES.map((s) => (
+                  <option key={s} value={s}>
+                    {BANNER_STYLE_LABELS[s]}
                   </option>
                 ))}
               </select>
@@ -223,10 +219,7 @@ export function PageForm({
           <Field label="Başlık" error={e.title}>
             <input name="title" defaultValue={page?.title} className={inputCls} />
           </Field>
-          <Field
-            label="İçerik"
-            hint='Paragrafları boş bir satırla ayırın. "## " ile başlayan satır ara başlık olur.'
-          >
+          <Field label="İçerik" hint='Paragrafları boş bir satırla ayırın. "## " ile başlayan satır ara başlık olur.'>
             <textarea name="content" rows={20} defaultValue={page?.content} className={`${textareaCls} font-mono text-[13px]`} />
           </Field>
         </div>
@@ -278,7 +271,7 @@ export function OrderUpdateForm({
       <input type="hidden" name="id" value={order.id} />
       <Field label="Sipariş durumu">
         <select name="status" defaultValue={order.status} className={inputCls}>
-          {ORDER_STATUSES.map((s) => (
+          {ORDER_STATUSES.filter((s) => s !== "awaiting_payment" || order.status === "awaiting_payment").map((s) => (
             <option key={s} value={s}>
               {ORDER_STATUS_LABELS[s]}
             </option>
@@ -306,7 +299,7 @@ export function OrderUpdateForm({
         <input name="trackingNo" defaultValue={order.trackingNo} className={inputCls} />
       </Field>
       <Field label="Yönetici notu" hint="Müşteri görmez.">
-        <textarea name="adminNote" rows={3} defaultValue={order.adminNote} className={textareaCls} />
+        <textarea name="adminNote" rows={4} defaultValue={order.adminNote} className={textareaCls} />
       </Field>
       <FormMessage state={state} />
       <SubmitButton pending={pending}>Güncelle</SubmitButton>
@@ -314,83 +307,7 @@ export function OrderUpdateForm({
   );
 }
 
-/* ---------------- Ayarlar ---------------- */
-
-export function SettingsForm({ settings }: { settings: Settings }) {
-  const { state, onSubmit, pending } = useAdminAction(saveSettings);
-  const e = state.errors ?? {};
-  const text = (key: keyof Settings, label: string, hint?: string, placeholder?: string) => (
-    <Field label={label} hint={hint} error={e[key]}>
-      <input name={key} defaultValue={settings[key]} placeholder={placeholder} className={inputCls} />
-    </Field>
-  );
-  const money = (key: keyof Settings, label: string, hint?: string) => (
-    <Field label={label} hint={hint} error={e[key]}>
-      <input name={key} defaultValue={kurusToInput(Number(settings[key]))} inputMode="decimal" className={inputCls} />
-    </Field>
-  );
-
-  return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      <Card title="Mağaza">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {text("storeName", "Mağaza adı", "Sekme başlığı ve e-postalarda görünür.")}
-          {text("logoText", "Logo yazısı", "Header'da gösterilen marka yazısı.")}
-          {text("tagline", "Slogan")}
-          {text("metaDescription", "Arama motoru açıklaması")}
-        </div>
-      </Card>
-
-      <Card title="Duyuru bandı" description="Sitenin en üstündeki kayan siyah bant.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {text("announcement", "Duyuru metni", "Boş bırakılırsa bant gizlenir.")}
-          {text("announcementLink", "Bağlantı", undefined, "/kategori/yeni-gelenler")}
-        </div>
-      </Card>
-
-      <Card title="Fiyatlandırma ve kargo">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Sepet indirimi (%)" hint="Tüm ürünlerde 'Sepetteki Fiyat' olarak gösterilir. 0 = kapalı." error={e.cartDiscountPercent}>
-            <input name="cartDiscountPercent" type="number" min={0} max={90} defaultValue={settings.cartDiscountPercent} className={inputCls} />
-          </Field>
-          {money("freeShippingThreshold", "Ücretsiz kargo alt limiti (TL)", "0 = her zaman ücretsiz.")}
-          {money("shippingFee", "Kargo ücreti (TL)")}
-          {money("codFee", "Kapıda ödeme hizmet bedeli (TL)")}
-        </div>
-      </Card>
-
-      <Card title="Ödeme yöntemleri">
-        <div className="space-y-4">
-          <Toggle name="paymentBankTransfer" label="Havale / EFT" defaultChecked={settings.paymentBankTransfer === "1"} />
-          <Toggle name="paymentCashOnDelivery" label="Kapıda ödeme" defaultChecked={settings.paymentCashOnDelivery === "1"} />
-          <div className="grid gap-4 border-t border-zinc-100 pt-4 sm:grid-cols-3">
-            {text("bankName", "Banka adı")}
-            {text("accountHolder", "Hesap sahibi")}
-            {text("iban", "IBAN", undefined, "TR00 0000 0000 0000 0000 0000 00")}
-          </div>
-        </div>
-      </Card>
-
-      <Card title="İletişim">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {text("whatsapp", "WhatsApp numarası", "Ülke koduyla, örn. 905321234567")}
-          {text("phone", "Telefon")}
-          {text("email", "E-posta")}
-          {text("instagram", "Instagram adresi")}
-          <Field label="Çalışma saatleri" className="sm:col-span-2">
-            <textarea name="workingHours" rows={2} defaultValue={settings.workingHours} className={textareaCls} />
-          </Field>
-          {text("secureText", "Footer güvenlik metni")}
-        </div>
-      </Card>
-
-      <div className="sticky bottom-0 -mx-4 flex items-center justify-end gap-4 border-t border-zinc-200 bg-zinc-50/95 px-4 py-3 backdrop-blur lg:-mx-8 lg:px-8">
-        <FormMessage state={state} />
-        <SubmitButton pending={pending}>Ayarları kaydet</SubmitButton>
-      </div>
-    </form>
-  );
-}
+/* ---------------- Şifre ---------------- */
 
 export function PasswordForm() {
   const { state, onSubmit, pending } = useAdminAction(changePassword);
