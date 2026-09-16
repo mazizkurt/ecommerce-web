@@ -2,16 +2,19 @@ import type { Metadata } from "next";
 import { type CheckoutMethod, CheckoutForm } from "@/components/shop/checkout-form";
 import { getCurrentUser } from "@/lib/auth";
 import { getEnabledProviders } from "@/lib/payments";
+import { getPageBySlug } from "@/lib/queries";
 import { enabledBuiltinMethods, getSettings, pricingFrom } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Ödeme", robots: { index: false } };
 
 export default async function CheckoutPage({ searchParams }: PageProps<"/odeme">) {
-  const [settings, user, providers, sp] = await Promise.all([
+  const [settings, user, providers, sp, terms, privacy] = await Promise.all([
     getSettings(),
     getCurrentUser(),
     getEnabledProviders(),
     searchParams,
+    getPageBySlug("mesafeli-satis-sozlesmesi"),
+    getPageBySlug("gizlilik-sozlesmesi"),
   ]);
   const [firstName = "", ...rest] = (user?.name ?? "").split(" ");
   const builtins = enabledBuiltinMethods(settings);
@@ -38,6 +41,10 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/odeme">
       <CheckoutForm
         methods={methods}
         paymentError={paymentError}
+        agreements={{
+          terms: terms ? { slug: terms.slug, title: terms.title, content: terms.content } : null,
+          privacy: privacy ? { slug: privacy.slug, title: privacy.title, content: privacy.content } : null,
+        }}
         defaults={{
           email: user?.email ?? "",
           phone: user?.phone ?? "",

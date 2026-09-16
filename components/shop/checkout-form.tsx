@@ -13,6 +13,8 @@ import { formatPrice } from "@/lib/format";
 import { type AppliedCoupon, calcTotals, cartPrice } from "@/lib/pricing";
 import { useSyncedCart } from "@/lib/use-synced-cart";
 import { useCartUI } from "./cart-ui";
+import { PageContent } from "./page-content";
+import { Sheet } from "./sheet";
 
 export type CheckoutMethod = {
   value: string;
@@ -23,6 +25,9 @@ export type CheckoutMethod = {
 };
 
 type Defaults = { email: string; phone: string; firstName: string; lastName: string };
+
+export type AgreementPage = { slug: string; title: string; content: string } | null;
+export type Agreements = { terms: AgreementPage; privacy: AgreementPage };
 
 const METHOD_ICONS = { card: CreditCard, bank: Banknote, cod: Truck };
 
@@ -56,10 +61,12 @@ export function CheckoutForm({
   methods,
   defaults,
   paymentError,
+  agreements,
 }: {
   methods: CheckoutMethod[];
   defaults: Defaults;
   paymentError: string | null;
+  agreements: Agreements;
 }) {
   const router = useRouter();
   const { items, notice, synced } = useSyncedCart();
@@ -70,6 +77,7 @@ export function CheckoutForm({
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
   const [couponMessage, setCouponMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [couponPending, startCoupon] = useTransition();
+  const [openAgreement, setOpenAgreement] = useState<AgreementPage>(null);
 
   const selected = methods.find((m) => m.value === method);
   const methodKind = selected?.kind === "cod" ? "cash_on_delivery" : selected?.kind;
@@ -339,13 +347,13 @@ export function CheckoutForm({
         <label className="mt-5 flex items-start gap-2.5 text-[13px] leading-5">
           <input type="checkbox" name="agreement" className="mt-1 accent-black" />
           <span>
-            <Link href="/sayfa/mesafeli-satis-sozlesmesi" target="_blank" className="underline">
+            <AgreementLink page={agreements.terms} fallbackSlug="mesafeli-satis-sozlesmesi" onOpen={setOpenAgreement}>
               Mesafeli Satış Sözleşmesi
-            </Link>{" "}
+            </AgreementLink>{" "}
             ve{" "}
-            <Link href="/sayfa/gizlilik-sozlesmesi" target="_blank" className="underline">
+            <AgreementLink page={agreements.privacy} fallbackSlug="gizlilik-sozlesmesi" onOpen={setOpenAgreement}>
               Gizlilik Sözleşmesi
-            </Link>
+            </AgreementLink>
             &apos;ni okudum, onaylıyorum.
           </span>
         </label>
@@ -366,6 +374,42 @@ export function CheckoutForm({
           {pending ? "İŞLENİYOR..." : selected?.kind === "card" ? "ÖDEMEYE GEÇ" : "SİPARİŞİ TAMAMLA"}
         </button>
       </aside>
+
+      <Sheet
+        open={!!openAgreement}
+        onClose={() => setOpenAgreement(null)}
+        title={openAgreement?.title ?? ""}
+      >
+        <div className="prose-content text-[13px] leading-6 text-zinc-700">
+          {openAgreement && <PageContent content={openAgreement.content} />}
+        </div>
+      </Sheet>
     </form>
+  );
+}
+
+/** Sözleşme panelde açılır; sayfa yoksa normal bağlantıya düşer. */
+function AgreementLink({
+  page,
+  fallbackSlug,
+  onOpen,
+  children,
+}: {
+  page: AgreementPage;
+  fallbackSlug: string;
+  onOpen: (page: AgreementPage) => void;
+  children: React.ReactNode;
+}) {
+  if (!page) {
+    return (
+      <Link href={`/sayfa/${fallbackSlug}`} target="_blank" className="underline">
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={() => onOpen(page)} className="underline underline-offset-2 hover:text-zinc-500">
+      {children}
+    </button>
   );
 }
