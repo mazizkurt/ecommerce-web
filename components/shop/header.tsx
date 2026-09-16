@@ -81,8 +81,8 @@ export function Header({ menu, branding, whatsapp }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b border-line-strong bg-white">
       {/* Masaüstü */}
-      <div className="hidden h-20 grid-cols-[1fr_4fr_1fr] lg:grid">
-        <div className="flex items-center border-r border-line-strong pl-8">
+      <div className="hidden h-20 grid-cols-[1.2fr_3.8fr_1fr] lg:grid">
+        <div className="flex items-center border-r border-line-strong px-6">
           <Logo branding={branding} maxHeight={Math.min(branding.logoHeight, 64)} className="text-[34px]" />
         </div>
         <nav aria-label="Ana menü" className="flex items-center justify-center">
@@ -135,17 +135,16 @@ export function Header({ menu, branding, whatsapp }: HeaderProps) {
       </div>
 
       {/* Mobil */}
-      <div className="grid h-[58px] grid-cols-[1fr_auto_1fr] items-center px-3 lg:hidden">
+      <div className="flex h-[58px] items-center justify-between px-3 lg:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="flex items-center gap-2 justify-self-start text-[15px]"
+          className="flex items-center gap-2 text-[15px]"
         >
           <Menu className="size-6" strokeWidth={1.8} />
           Menü
         </button>
-        <Logo branding={branding} maxHeight={Math.min(branding.logoHeight, 38)} className="text-2xl" />
-        <div className="flex items-center gap-4 justify-self-end">
+        <div className="flex items-center gap-4">
           <Link href="/hesabim" aria-label="Hesabım">
             <User className="size-6" strokeWidth={1.5} />
           </Link>
@@ -222,7 +221,7 @@ function MobileMenu({
         )}
       >
         <div className="flex items-center justify-between border-b border-[#e2e2e2] p-4">
-          <Logo branding={branding} maxHeight={Math.min(branding.logoHeight, 44)} className="text-3xl" />
+          <Logo branding={branding} maxHeight={Math.min(branding.logoHeight, 44)} className="max-w-[70%] text-3xl" />
           <button type="button" onClick={onClose} aria-label="Menüyü kapat">
             <X className="size-6" strokeWidth={1.5} />
           </button>
