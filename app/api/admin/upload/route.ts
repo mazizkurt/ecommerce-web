@@ -9,13 +9,15 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const files = form.getAll("file").filter((f): f is File => f instanceof File);
+  // Favicon ve paylaşım görseli WebP'ye çevrilmez (tarayıcı ikonu ve sosyal medya önizlemeleri için).
+  const convert = form.get("convert") !== "0";
   if (files.length === 0) {
     return Response.json({ error: "Dosya seçilmedi." }, { status: 400 });
   }
 
   try {
     const urls: string[] = [];
-    for (const file of files) urls.push(await saveUpload(file));
+    for (const file of files) urls.push(await saveUpload(file, { convert }));
     return Response.json({ urls });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Yükleme hatası.";

@@ -195,10 +195,10 @@ export function AppearanceSettingsForm({ settings: s }: { settings: Settings }) 
                 <ImageUploader name="logoUrl" initial={s.logoUrl ? [s.logoUrl] : []} multiple={false} aspect="aspect-[3/1]" fit="contain" accept="image/png,image/webp,image/jpeg" label="Logo yükle" />
               </Field>
               <Field label="Favicon (sekme ikonu)" hint="Kare PNG, en az 192×192. Yüklenmezse baş harften üretilir.">
-                <ImageUploader name="faviconUrl" initial={s.faviconUrl ? [s.faviconUrl] : []} multiple={false} aspect="aspect-square" fit="contain" accept="image/png,image/webp" label="İkon yükle" />
+                <ImageUploader name="faviconUrl" initial={s.faviconUrl ? [s.faviconUrl] : []} multiple={false} aspect="aspect-square" fit="contain" accept="image/png,image/webp" label="İkon yükle" convert={false} />
               </Field>
               <Field label="Paylaşım görseli" hint="Linkler sosyal medyada paylaşıldığında görünür (1200×630).">
-                <ImageUploader name="ogImageUrl" initial={s.ogImageUrl ? [s.ogImageUrl] : []} multiple={false} aspect="aspect-[1200/630]" label="Görsel yükle" />
+                <ImageUploader name="ogImageUrl" initial={s.ogImageUrl ? [s.ogImageUrl] : []} multiple={false} aspect="aspect-[1200/630]" label="Görsel yükle" convert={false} />
               </Field>
             </div>
             <Field label="Logo yüksekliği (px)" hint="Masaüstü header'da en fazla 64px gösterilir." error={e.logoHeight} className="mt-4 max-w-40">

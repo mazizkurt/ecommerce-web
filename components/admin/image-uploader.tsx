@@ -18,6 +18,7 @@ export function ImageUploader({
   aspect = "aspect-[2/3]",
   label = "Görsel yükle",
   fit = "cover",
+  convert = true,
 }: {
   name: string;
   initial: string[];
@@ -26,6 +27,8 @@ export function ImageUploader({
   aspect?: string;
   label?: string;
   fit?: "cover" | "contain";
+  /** false: dosya WebP'ye çevrilmeden olduğu gibi kaydedilir. */
+  convert?: boolean;
 }) {
   const [urls, setUrls] = useState(initial.filter(Boolean));
   const [uploading, setUploading] = useState(false);
@@ -38,6 +41,7 @@ export function ImageUploader({
     setError(null);
     const body = new FormData();
     for (const f of Array.from(files)) body.append("file", f);
+    if (!convert) body.append("convert", "0");
     try {
       const res = await fetch("/api/admin/upload", { method: "POST", body });
       const data = (await res.json()) as { urls?: string[]; error?: string };
