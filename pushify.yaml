@@ -1,0 +1,5 @@
+# Pushify ayar dosyası: repo kökündeki bu dosya panel ayarlarının önüne geçer.
+# Yüklenen görseller (logo, ürün ve banner fotoğrafları) deploy'lar arasında kaybolmasın.
+volumes:
+  - name: uploads
+    path: /app/storage
