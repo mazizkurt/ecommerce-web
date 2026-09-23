@@ -47,6 +47,7 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/odeme">
       <CheckoutForm
         methods={methods}
         paymentError={paymentError}
+        showIyzicoLogo={settings.showIyzicoLogo === "1"}
         agreements={{
           terms: terms ? { slug: terms.slug, title: terms.title, content: terms.content } : null,
           privacy: privacy ? { slug: privacy.slug, title: privacy.title, content: privacy.content } : null,

@@ -563,6 +563,7 @@ export function PaymentBuiltinForm({ settings: s }: { settings: Settings }) {
   const keys: SettingKey[] = [
     "paymentBankTransfer", "bankTransferText", "bankName", "accountHolder", "iban",
     "paymentCashOnDelivery", "codFee", "codText",
+    "showIyzicoLogo",
   ];
   return (
     <SettingsForm keys={keys}>
@@ -578,6 +579,14 @@ export function PaymentBuiltinForm({ settings: s }: { settings: Settings }) {
               </div>
               <Text s={s} name="bankTransferText" label="Ödeme sayfasındaki açıklama" rows={2} errors={e} />
             </div>
+          </Card>
+          <Card title="iyzico logoları">
+            <Toggle
+              name="showIyzicoLogo"
+              label="iyzico logolarını göster"
+              description="Footer'daki iyzico + kart markaları bandı ve ödeme sayfasındaki 'iyzico ile Öde' rozeti. iyzico anahtarları girilmemiş olsa da görünür."
+              defaultChecked={s.showIyzicoLogo === "1"}
+            />
           </Card>
           <Card title="Kapıda ödeme">
             <div className="space-y-4">

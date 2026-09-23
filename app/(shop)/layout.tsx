@@ -35,7 +35,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
           menu={menu}
           pages={pages}
           cardEnabled={providers.length > 0}
-          iyzicoEnabled={providers.some((p) => p.id === "iyzico")}
+          iyzicoEnabled={settings.showIyzicoLogo === "1"}
         />
       </div>
       <WhatsAppButton phone={settings.whatsapp} />

@@ -65,11 +65,13 @@ export function CheckoutForm({
   defaults,
   paymentError,
   agreements,
+  showIyzicoLogo,
 }: {
   methods: CheckoutMethod[];
   defaults: Defaults;
   paymentError: string | null;
   agreements: Agreements;
+  showIyzicoLogo: boolean;
 }) {
   const router = useRouter();
   const { items, notice, synced } = useSyncedCart();
@@ -233,7 +235,7 @@ export function CheckoutForm({
                       <Icon className="size-4" />
                       {m.label}
                       {m.fee ? <span className="font-normal text-zinc-500">(+{formatPrice(m.fee)} hizmet bedeli)</span> : null}
-                      {m.providerId === "iyzico" && <IyzicoPayBadge className="ml-auto" />}
+                      {showIyzicoLogo && m.providerId === "iyzico" && <IyzicoPayBadge className="ml-auto" />}
                     </span>
                     {m.description && <span className="mt-1 block text-[13px] text-zinc-500">{m.description}</span>}
                   </span>

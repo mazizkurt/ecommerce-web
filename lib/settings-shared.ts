@@ -61,6 +61,8 @@ export const DEFAULT_SETTINGS = {
   // Ödeme (yerleşik yöntemler; online sağlayıcılar payment_providers tablosunda)
   paymentBankTransfer: "1",
   paymentCashOnDelivery: "1",
+  // iyzico logoları anahtarlar girilmeden de gösterilebilir.
+  showIyzicoLogo: "1",
   bankTransferText:
     "Siparişinizi tamamladıktan sonra banka hesap bilgilerimiz gösterilecektir. Ödemeniz onaylandığında siparişiniz hazırlanır.",
   codText: "Ödemeyi ürünü teslim alırken kapıda nakit veya kart ile yapabilirsiniz.",
@@ -112,6 +114,7 @@ export const SECRET_KEYS: SettingKey[] = ["resendApiKey", "smtpPassword"];
 export const BOOLEAN_KEYS: SettingKey[] = [
   "paymentBankTransfer",
   "paymentCashOnDelivery",
+  "showIyzicoLogo",
   "smtpSecure",
   "notifyCustomerOrder",
   "notifyAdminOrder",
