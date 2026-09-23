@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { mp4MoovAtEnd, saveUpload } from "@/lib/storage";
+import { saveUpload } from "@/lib/storage";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -19,20 +19,9 @@ export async function POST(request: Request) {
     const urls: string[] = [];
     const warnings: string[] = [];
     for (const file of files) {
-      if (file.type === "video/mp4") {
-        const head = Buffer.from(await file.slice(0, 1 << 16).arrayBuffer());
-        if (mp4MoovAtEnd(head)) {
-          warnings.push(
-            "Video web için optimize edilmemiş: iPhone'da başlamadan önce dosyanın tamamı indirilir. Düzeltmek için: ffmpeg -i video.mp4 -c copy -movflags +faststart yeni.mp4",
-          );
-        }
-        if (file.size > 8 * 1024 * 1024) {
-          warnings.push(
-            `Video ${(file.size / 1024 / 1024).toFixed(1)} MB. Mobilde hızlı açılması için 8 MB altını hedefleyin.`,
-          );
-        }
-      }
-      urls.push(await saveUpload(file, { convert }));
+      const saved = await saveUpload(file, { convert });
+      urls.push(saved.url);
+      warnings.push(...saved.warnings);
     }
     return Response.json({ urls, warnings });
   } catch (error) {
