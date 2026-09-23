@@ -3,6 +3,7 @@ import Image, { getImageProps } from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import type { banners } from "@/lib/db/schema";
+import { HeroVideo } from "./hero-video";
 
 type Banner = typeof banners.$inferSelect;
 
@@ -50,13 +51,9 @@ export function HeroSlide({ banner, priority }: { banner: Banner; priority?: boo
   return (
     <BannerLink href={banner.link} className="absolute inset-0 block">
       {banner.videoUrl ? (
-        <video
+        <HeroVideo
           src={banner.videoUrl}
           poster={banner.imageUrl || undefined}
-          autoPlay
-          muted
-          loop
-          playsInline
           className="absolute inset-0 size-full object-cover"
         />
       ) : (

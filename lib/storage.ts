@@ -50,6 +50,29 @@ async function toWebp(input: Buffer) {
   return data.length < input.length || tooBig ? { data, ext: "webp" } : null;
 }
 
+/**
+ * MP4'te oynatma bilgisi (moov kutusu) dosyanın sonundaysa Safari videoyu
+ * başlatmadan önce dosyanın tamamını indirir; video geç başlar ya da hiç başlamaz.
+ * Sadece dosyanın başındaki kutu başlıklarına bakar.
+ */
+export function mp4MoovAtEnd(head: Buffer) {
+  let offset = 0;
+  while (offset + 8 <= head.length) {
+    let size = head.readUInt32BE(offset);
+    const type = head.toString("ascii", offset + 4, offset + 8);
+    if (type === "moov") return false;
+    if (type === "mdat") return true;
+    if (size === 1) {
+      if (offset + 16 > head.length) return false;
+      size = Number(head.readBigUInt64BE(offset + 8));
+    }
+    if (size < 8) return false;
+    offset += size;
+  }
+  // Başlıklar tampondan taştı: büyük bir kutu (çoğunlukla mdat) moov'dan önce geliyor.
+  return true;
+}
+
 export async function saveUpload(file: File, { convert = true } = {}) {
   const ext = EXT_BY_MIME[file.type];
   if (!ext) throw new Error(`Desteklenmeyen dosya türü: ${file.type || "?"}`);

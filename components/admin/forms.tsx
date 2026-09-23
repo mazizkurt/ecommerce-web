@@ -138,7 +138,7 @@ export function BannerForm({
               </Field>
             )}
             {placement === "hero" && (
-              <Field label="Video (isteğe bağlı, MP4)" hint="Video eklenirse görsel yerine otomatik oynatılır; görsel kapak olarak kullanılır.">
+              <Field label="Video (isteğe bağlı, MP4)" hint="Video eklenirse görsel yerine sessiz ve otomatik oynatılır; görsel kapak olarak kullanılır. iPhone uyumu için MP4 (H.264), 8 MB altı ve web için optimize edilmiş (faststart) olmalı.">
                 <ImageUploader
                   name="videoUrl"
                   initial={banner?.videoUrl ? [banner.videoUrl] : []}

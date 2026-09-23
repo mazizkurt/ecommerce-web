@@ -33,20 +33,23 @@ export function ImageUploader({
   const [urls, setUrls] = useState(initial.filter(Boolean));
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function upload(files: FileList | null) {
     if (!files?.length) return;
     setUploading(true);
     setError(null);
+    setWarnings([]);
     const body = new FormData();
     for (const f of Array.from(files)) body.append("file", f);
     if (!convert) body.append("convert", "0");
     try {
       const res = await fetch("/api/admin/upload", { method: "POST", body });
-      const data = (await res.json()) as { urls?: string[]; error?: string };
+      const data = (await res.json()) as { urls?: string[]; warnings?: string[]; error?: string };
       if (!res.ok || !data.urls) throw new Error(data.error ?? "Yükleme başarısız.");
       setUrls((prev) => (multiple ? [...prev, ...data.urls!] : data.urls!.slice(0, 1)));
+      if (data.warnings?.length) setWarnings(data.warnings);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Yükleme başarısız.");
     } finally {
@@ -132,6 +135,11 @@ export function ImageUploader({
         )}
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {warnings.map((w) => (
+        <p key={w} className="mt-2 border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          {w}
+        </p>
+      ))}
     </div>
   );
 }
