@@ -30,7 +30,13 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
       />
       <main className="flex-1">{children}</main>
       <div className="pb-[60px] lg:pb-0">
-        <Footer settings={settings} menu={menu} pages={pages} cardEnabled={providers.length > 0} />
+        <Footer
+          settings={settings}
+          menu={menu}
+          pages={pages}
+          cardEnabled={providers.length > 0}
+          iyzicoEnabled={providers.some((p) => p.id === "iyzico")}
+        />
       </div>
       <WhatsAppButton phone={settings.whatsapp} />
       <MobileBottomNav />

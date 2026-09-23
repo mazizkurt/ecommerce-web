@@ -1,20 +1,21 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Share2, Star, Truck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Share2, Star, Truck, X, ZoomIn } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { WhatsAppIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { formatPrice } from "@/lib/format";
 import { cartPrice, discountRate } from "@/lib/pricing";
 import type { ProductCardData } from "@/lib/queries";
-import { useCartUI } from "./cart-ui";
+import { useCartUI, useLockBodyScroll } from "./cart-ui";
 import { FavoriteButton } from "./product-card-actions";
 
 export function ProductGallery({ images, name }: { images: string[]; name: string }) {
   const [index, setIndex] = useState(0);
+  const [zoom, setZoom] = useState<number | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const count = images.length;
 
@@ -58,7 +59,13 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
           className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto"
         >
           {images.map((src, i) => (
-            <div key={src} className="relative aspect-[2/3] w-full shrink-0 snap-center bg-soft">
+            <button
+              key={src}
+              type="button"
+              onClick={() => setZoom(i)}
+              aria-label="Görseli büyüt"
+              className="relative aspect-[2/3] w-full shrink-0 cursor-zoom-in snap-center bg-soft"
+            >
               <Image
                 src={src}
                 alt={i === 0 ? name : ""}
@@ -67,7 +74,7 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
                 sizes="(min-width: 1024px) 55vw, 100vw"
                 className="object-cover"
               />
-            </div>
+            </button>
           ))}
         </div>
         {count > 1 && (
@@ -95,7 +102,127 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
             </div>
           </>
         )}
+        <button
+          type="button"
+          onClick={() => setZoom(index)}
+          aria-label="Görseli büyüt"
+          className="absolute bottom-3 right-3 flex size-9 items-center justify-center rounded-full bg-white/90 text-black shadow-[0_1px_6px_rgba(0,0,0,0.15)] transition-colors hover:bg-white"
+        >
+          <ZoomIn className="size-4" strokeWidth={1.6} />
+        </button>
       </div>
+
+      {zoom !== null && (
+        <Lightbox images={images} start={zoom} name={name} onClose={() => setZoom(null)} />
+      )}
+    </div>
+  );
+}
+
+/** Görselin tamamını (kırpmadan) tam ekran gösterir. */
+function Lightbox({
+  images,
+  start,
+  name,
+  onClose,
+}: {
+  images: string[];
+  start: number;
+  name: string;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(start);
+  const scroller = useRef<HTMLDivElement>(null);
+  const count = images.length;
+  useLockBodyScroll(true);
+
+  const step = (dir: 1 | -1) => {
+    const next = (index + dir + count) % count;
+    setIndex(next);
+    const el = scroller.current;
+    if (el) el.scrollTo({ left: next * el.clientWidth, behavior: "smooth" });
+  };
+
+  // Açılışta tıklanan görsele konumlan.
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollTo({ left: start * el.clientWidth });
+  }, [start]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") step(1);
+      if (e.key === "ArrowLeft") step(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${name} görselleri`}
+      className="fixed inset-0 z-[70] animate-fade-in bg-black/95"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Kapat"
+        className="absolute right-3 top-3 z-20 p-2 text-white/80 transition-colors hover:text-white"
+      >
+        <X className="size-7" strokeWidth={1.3} />
+      </button>
+
+      <div
+        ref={scroller}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const i = Math.round(el.scrollLeft / el.clientWidth);
+          if (i !== index) setIndex(i);
+        }}
+        className="scrollbar-none flex h-full snap-x snap-mandatory overflow-x-auto overscroll-contain"
+      >
+        {images.map((src, i) => (
+          // Görselin dışına (ya da üstüne) tıklayınca kapanır.
+          <div key={src} onClick={onClose} className="relative h-full w-full shrink-0 snap-center">
+            <Image
+              src={src}
+              alt={`${name} — ${i + 1}. görsel`}
+              fill
+              sizes="100vw"
+              quality={90}
+              priority={i === start}
+              className="object-contain p-3 md:p-10"
+            />
+          </div>
+        ))}
+      </div>
+
+      {count > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => step(-1)}
+            aria-label="Önceki görsel"
+            className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 p-3 text-white/70 transition-colors hover:text-white md:block"
+          >
+            <ChevronLeft className="size-9" strokeWidth={1.2} />
+          </button>
+          <button
+            type="button"
+            onClick={() => step(1)}
+            aria-label="Sonraki görsel"
+            className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 p-3 text-white/70 transition-colors hover:text-white md:block"
+          >
+            <ChevronRight className="size-9" strokeWidth={1.2} />
+          </button>
+          <span className="absolute inset-x-0 bottom-5 z-10 text-center text-[13px] text-white/70">
+            {index + 1} / {count}
+          </span>
+        </>
+      )}
     </div>
   );
 }

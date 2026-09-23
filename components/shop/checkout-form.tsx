@@ -14,6 +14,7 @@ import { type AppliedCoupon, calcTotals, cartPrice } from "@/lib/pricing";
 import { useSyncedCart } from "@/lib/use-synced-cart";
 import { useCartUI } from "./cart-ui";
 import { PageContent } from "./page-content";
+import { IyzicoPayBadge } from "./payment-logos";
 import { Sheet } from "./sheet";
 
 export type CheckoutMethod = {
@@ -22,6 +23,8 @@ export type CheckoutMethod = {
   description: string;
   kind: "card" | "bank" | "cod";
   fee?: number;
+  /** Kartlı ödemede sağlayıcı kimliği (ör. "iyzico") — logosu gösterilir. */
+  providerId?: string;
 };
 
 type Defaults = { email: string; phone: string; firstName: string; lastName: string };
@@ -230,6 +233,7 @@ export function CheckoutForm({
                       <Icon className="size-4" />
                       {m.label}
                       {m.fee ? <span className="font-normal text-zinc-500">(+{formatPrice(m.fee)} hizmet bedeli)</span> : null}
+                      {m.providerId === "iyzico" && <IyzicoPayBadge className="ml-auto" />}
                     </span>
                     {m.description && <span className="mt-1 block text-[13px] text-zinc-500">{m.description}</span>}
                   </span>

@@ -20,6 +20,7 @@ import {
   YouTubeIcon,
 } from "@/components/icons";
 import type { CategoryNode } from "@/lib/queries";
+import { IyzicoBand } from "./payment-logos";
 import { type InfoIcon, parseInfoBar, type Settings } from "@/lib/settings";
 
 type FooterPage = { slug: string; title: string; footerGroup: string };
@@ -63,11 +64,14 @@ export function Footer({
   menu,
   pages,
   cardEnabled,
+  iyzicoEnabled,
 }: {
   settings: Settings;
   menu: CategoryNode[];
   pages: FooterPage[];
   cardEnabled: boolean;
+  /** iyzico açıksa markanın istediği logo bandı gösterilir. */
+  iyzicoEnabled: boolean;
 }) {
   const customerLinks = [
     ...pages
@@ -170,6 +174,11 @@ export function Footer({
             </span>
           )}
         </div>
+        {iyzicoEnabled && (
+          <div className="mb-8 flex justify-center">
+            <IyzicoBand />
+          </div>
+        )}
         <p>{settings.secureText}</p>
         <p className="mt-1">
           © {new Date().getFullYear()} {settings.storeName} · Tüm Hakları Saklıdır

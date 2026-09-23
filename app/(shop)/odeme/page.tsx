@@ -21,7 +21,13 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/odeme">
   const { codFee } = pricingFrom(settings);
 
   const methods: CheckoutMethod[] = [
-    ...providers.map((p) => ({ value: `card:${p.id}`, label: p.title, description: p.description, kind: "card" as const })),
+    ...providers.map((p) => ({
+      value: `card:${p.id}`,
+      label: p.title,
+      description: p.description,
+      kind: "card" as const,
+      providerId: p.id,
+    })),
     ...(builtins.includes("bank_transfer")
       ? [{ value: "bank_transfer", label: "Havale / EFT", description: settings.bankTransferText, kind: "bank" as const }]
       : []),
