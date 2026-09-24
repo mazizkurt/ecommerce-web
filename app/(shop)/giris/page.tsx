@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/shop/account-forms";
 import { getCurrentUser } from "@/lib/auth";
 
-export const metadata: Metadata = { title: "Giriş Yap" };
+export const metadata: Metadata = { title: "Giriş Yap", robots: { index: false } };
 
 export default async function LoginPage({ searchParams }: PageProps<"/giris">) {
   const sp = await searchParams;

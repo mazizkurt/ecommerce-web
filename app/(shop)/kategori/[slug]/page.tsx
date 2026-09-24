@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { breadcrumbLd, excerpt, JsonLd } from "@/components/shop/json-ld";
 import { ListingToolbar } from "@/components/shop/listing-toolbar";
 import { Breadcrumb, Pagination, ProductGrid } from "@/components/shop/sections";
 import { buildQuery, parseListingParams, toProductFilter } from "@/lib/listing";
@@ -11,17 +12,25 @@ import {
   getProducts,
   getSizesForCategories,
 } from "@/lib/queries";
-import { getSettings, pricingFrom } from "@/lib/settings";
+import { getSettings, pricingFrom, siteUrlFrom } from "@/lib/settings";
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: PageProps<"/kategori/[slug]">): Promise<Metadata> {
-  const { slug } = await params;
+  const [{ slug }, sp, settings] = await Promise.all([params, searchParams, getSettings()]);
   const category = (await getAllCategories()).find((c) => c.slug === slug);
+  if (!category) return { title: "Kategori bulunamadı" };
+  // Filtre/sıralama farklı içerik değil; sayfa numarası ise farklı ürünler gösterir.
+  const page = Number(Array.isArray(sp.sayfa) ? sp.sayfa[0] : sp.sayfa) || 1;
+  const url = `/kategori/${category.slug}${page > 1 ? `?sayfa=${page}` : ""}`;
   return {
-    title: category?.metaTitle || category?.name || "Kategori",
-    description: category?.description || undefined,
-    alternates: category ? { canonical: `/kategori/${category.slug}` } : undefined,
+    title: category.metaTitle || category.name,
+    description: excerpt(
+      category.description || `${category.name} modelleri ve fiyatları. ${settings.metaDescription}`,
+    ),
+    alternates: { canonical: url },
+    openGraph: { url, images: category.imageUrl ? [category.imageUrl] : undefined },
   };
 }
 
@@ -48,6 +57,14 @@ export default async function CategoryPage({
 
   return (
     <div className="pb-6">
+      {/* Kategori adı görsel olarak yol çubuğunda; başlık arama motorları ve ekran okuyucular için. */}
+      <h1 className="sr-only">{category.name}</h1>
+      <JsonLd
+        data={breadcrumbLd(siteUrlFrom(settings), [
+          { name: "Ana Sayfa", path: "/" },
+          ...trail.map((c) => ({ name: c.name, path: `/kategori/${c.slug}` })),
+        ])}
+      />
       <Breadcrumb
         items={[
           { label: "Ana Sayfa", href: "/" },

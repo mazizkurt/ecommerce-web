@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { absoluteUrl, breadcrumbLd, excerpt, JsonLd } from "@/components/shop/json-ld";
 import { BuyBox, ProductGallery, Stars } from "@/components/shop/product-detail";
 import { ReviewForm } from "@/components/shop/review-form";
 import { Breadcrumb, ProductGrid, SectionHeader } from "@/components/shop/sections";
@@ -19,12 +20,17 @@ export async function generateMetadata({ params }: PageProps<"/urun/[slug]">): P
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) return { title: "Ürün bulunamadı" };
-  const description = product.metaDescription || product.description.slice(0, 160);
+  const description = product.metaDescription || excerpt(product.description) || undefined;
   return {
     title: product.metaTitle || product.name,
     description,
     alternates: { canonical: `/urun/${product.slug}` },
-    openGraph: { title: product.metaTitle || product.name, description, images: product.images.slice(0, 1).map((i) => i.url) },
+    openGraph: {
+      title: product.metaTitle || product.name,
+      description,
+      url: `/urun/${product.slug}`,
+      images: product.images.slice(0, 1).map((i) => i.url),
+    },
   };
 }
 
@@ -61,15 +67,18 @@ export default async function ProductPage({ params }: PageProps<"/urun/[slug]">)
     "@type": "Product",
     name: product.name,
     sku: product.code || undefined,
-    image: card.images.map((i) => (i.startsWith("http") ? i : `${siteUrl}${i}`)),
-    description: product.metaDescription || product.description,
+    image: card.images.map((i) => absoluteUrl(siteUrl, i)),
+    description: product.metaDescription || excerpt(product.description, 5000),
+    brand: { "@type": "Brand", name: settings.storeName },
     ...(product.colorName && { color: product.colorName }),
     offers: {
       "@type": "Offer",
       priceCurrency: "TRY",
       price: (product.price / 100).toFixed(2),
       availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
       url: `${siteUrl}/urun/${product.slug}`,
+      seller: { "@type": "Organization", name: settings.storeName },
     },
     ...(reviews.length > 0 && {
       aggregateRating: {
@@ -82,9 +91,13 @@ export default async function ProductPage({ params }: PageProps<"/urun/[slug]">)
 
   return (
     <div className="pb-8">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+      <JsonLd data={jsonLd} />
+      <JsonLd
+        data={breadcrumbLd(siteUrl, [
+          { name: "Ana Sayfa", path: "/" },
+          ...trail.map((c) => ({ name: c.name, path: `/kategori/${c.slug}` })),
+          { name: product.name, path: `/urun/${product.slug}` },
+        ])}
       />
       <div className="[&>nav]:px-2.5 [&>nav]:py-2">
         <Breadcrumb

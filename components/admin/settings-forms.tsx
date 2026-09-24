@@ -138,7 +138,7 @@ export function GeneralSettingsForm({ settings: s }: { settings: Settings }) {
                 name="siteUrl"
                 label="Site adresi"
                 placeholder="https://www.magazaniz.com"
-                hint="E-posta linkleri, sitemap ve ödeme dönüşleri için. Boşsa istek adresinden bulunur."
+                hint="Mutlaka doldurun: site haritası, kanonik adresler, paylaşım görselleri, e-posta linkleri ve ödeme dönüşleri bu adresi kullanır."
                 errors={e}
               />
               <Text s={s} name="metaDescription" label="Arama motoru açıklaması" rows={2} errors={e} className="sm:col-span-2" />
@@ -458,6 +458,13 @@ export function SeoSettingsForm({ settings: s, siteUrl }: { settings: Settings; 
               <Text s={s} name="metaPixelId" label="Meta (Facebook/Instagram) Pixel ID" placeholder="1234567890" errors={e} />
             </div>
           </Card>
+          {/localhost|127\.0\.0\.1/.test(siteUrl) && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-5 text-amber-800">
+              Site adresi ayarlanmamış: site haritası, kanonik adresler ve paylaşım görselleri şu an{" "}
+              <span className="font-mono">{siteUrl}</span> adresini gösteriyor. Ayarlar → Genel bölümündeki
+              &quot;Site adresi&quot; alanına alan adınızı (https://...) yazın.
+            </p>
+          )}
           <Card title="Google Search Console">
             <Text
               s={s}

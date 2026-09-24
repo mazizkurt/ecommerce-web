@@ -1,9 +1,65 @@
+import type { Metadata } from "next";
 import { CategoryBanner, HeroSlide, WideBanner } from "@/components/shop/banners";
 import { HeroSlider } from "@/components/shop/hero-slider";
+import { absoluteUrl, JsonLd } from "@/components/shop/json-ld";
 import { Newsletter } from "@/components/shop/newsletter-form";
 import { ProductCarousel, ProductGrid, ReviewsCarousel, SectionHeader } from "@/components/shop/sections";
 import { getBanners, getHomeReviews, getProducts } from "@/lib/queries";
-import { getSettings, type HomeSectionKey, parseHomeSections, pricingFrom } from "@/lib/settings";
+import {
+  getSettings,
+  type HomeSectionKey,
+  parseHomeSections,
+  pricingFrom,
+  type Settings,
+  siteUrlFrom,
+} from "@/lib/settings";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
+/** Mağaza ve site içi arama bilgisi (Google'da marka kutusu ve arama alanı için). */
+function storeLd(s: Settings) {
+  const base = siteUrlFrom(s);
+  const sameAs = [s.instagram, s.facebook, s.tiktok, s.youtube, s.twitter, s.pinterest].filter(
+    (url) => /^https?:\/\/.+\/.+/.test(url),
+  );
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${base}/#website`,
+        url: base,
+        name: s.storeName,
+        inLanguage: "tr-TR",
+        publisher: { "@id": `${base}/#store` },
+        potentialAction: {
+          "@type": "SearchAction",
+          target: { "@type": "EntryPoint", urlTemplate: `${base}/arama?q={search_term_string}` },
+          "query-input": "required name=search_term_string",
+        },
+      },
+      {
+        "@type": "OnlineStore",
+        "@id": `${base}/#store`,
+        name: s.storeName,
+        url: base,
+        ...(s.metaDescription && { description: s.metaDescription }),
+        ...(s.logoUrl && { logo: absoluteUrl(base, s.logoUrl) }),
+        ...(sameAs.length > 0 && { sameAs }),
+        ...((s.phone || s.email) && {
+          contactPoint: {
+            "@type": "ContactPoint",
+            contactType: "customer service",
+            ...(s.phone && { telephone: s.phone }),
+            ...(s.email && { email: s.email }),
+            areaServed: "TR",
+            availableLanguage: "Turkish",
+          },
+        }),
+      },
+    ],
+  };
+}
 
 const count = (v: string) => Math.min(48, Math.max(1, Number.parseInt(v, 10) || 12));
 
@@ -68,6 +124,12 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Sayfanın ana başlığı; tasarımda logo bu işi görüyor, arama motorları için gizli başlık. */}
+      <h1 className="sr-only">
+        {settings.storeName}
+        {settings.tagline && ` — ${settings.tagline}`}
+      </h1>
+      <JsonLd data={storeLd(settings)} />
       {sections.map((s) => (
         <div key={s.key} className="contents">
           {render[s.key]()}

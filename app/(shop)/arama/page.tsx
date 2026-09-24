@@ -18,7 +18,11 @@ export async function generateMetadata({
   const [sp, settings] = await Promise.all([searchParams, getSettings()]);
   const list = LISTS[one(sp.liste) as keyof typeof LISTS];
   const q = one(sp.q).trim();
-  return { title: list ? settings[list.titleKey] : q ? `"${q}" araması` : "Tüm Ürünler" };
+  return {
+    title: list ? settings[list.titleKey] : q ? `"${q}" araması` : "Tüm Ürünler",
+    // Arama/liste sonuçları kategori sayfalarının kopyası; dizine eklenmez, ürün bağlantıları izlenir.
+    robots: { index: false, follow: true },
+  };
 }
 
 export default async function SearchPage({ searchParams }: PageProps<"/arama">) {

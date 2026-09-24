@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { RegisterForm } from "@/components/shop/account-forms";
 import { getCurrentUser } from "@/lib/auth";
 
-export const metadata: Metadata = { title: "Üye Ol" };
+export const metadata: Metadata = { title: "Üye Ol", robots: { index: false } };
 
 export default async function RegisterPage({ searchParams }: PageProps<"/uye-ol">) {
   const sp = await searchParams;

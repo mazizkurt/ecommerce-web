@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { TrackOrderForm } from "@/components/shop/account-forms";
 
-export const metadata: Metadata = { title: "Sipariş Takip" };
+export const metadata: Metadata = { title: "Sipariş Takip", robots: { index: false } };
 
 export default function TrackOrderPage() {
   return (
