@@ -14,7 +14,7 @@ import {
 import Form from "next/form";
 import Link from "next/link";
 import { useState } from "react";
-import { WhatsAppIcon } from "@/components/icons";
+import { InstagramIcon, WhatsAppIcon } from "@/components/icons";
 import { cartCount, useCartItems } from "@/lib/cart-store";
 import { cn } from "@/lib/cn";
 import type { CategoryNode } from "@/lib/queries";
@@ -26,6 +26,7 @@ type HeaderProps = {
   menu: CategoryNode[];
   branding: Branding;
   whatsapp: string;
+  instagram: string;
 };
 
 export function Logo({
@@ -71,7 +72,7 @@ function CountBadge({ count, className }: { count: number; className?: string })
   );
 }
 
-export function Header({ menu, branding, whatsapp }: HeaderProps) {
+export function Header({ menu, branding, whatsapp, instagram }: HeaderProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const items = useCartItems();
@@ -189,6 +190,7 @@ export function Header({ menu, branding, whatsapp }: HeaderProps) {
         menu={menu}
         branding={branding}
         whatsapp={whatsapp}
+        instagram={instagram}
       />
     </header>
   );
@@ -200,6 +202,7 @@ function MobileMenu({
   menu,
   branding,
   whatsapp,
+  instagram,
 }: HeaderProps & { open: boolean; onClose: () => void }) {
   const [expanded, setExpanded] = useState<number | null>(null);
   useLockBodyScroll(open);
@@ -300,6 +303,19 @@ function MobileMenu({
                 >
                   <WhatsAppIcon className="size-4 text-[#21bd5c]" />
                   WhatsApp Destek
+                </a>
+              </li>
+            )}
+            {instagram && (
+              <li>
+                <a
+                  href={instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2.5"
+                >
+                  <InstagramIcon className="size-4" />
+                  Instagram
                 </a>
               </li>
             )}

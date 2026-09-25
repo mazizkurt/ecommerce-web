@@ -118,6 +118,7 @@ export default async function ProductPage({ params }: PageProps<"/urun/[slug]">)
             reviewCount={reviews.length}
             whatsapp={settings.whatsapp}
             whatsappMessage={settings.whatsappMessage}
+            lowStockThreshold={Number(settings.lowStockThreshold) || 0}
             siteUrl={siteUrl}
             colorName={product.colorName}
             colors={siblings.map((s) => ({

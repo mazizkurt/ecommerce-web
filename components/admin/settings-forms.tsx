@@ -152,9 +152,12 @@ export function GeneralSettingsForm({ settings: s }: { settings: Settings }) {
               <Text s={s} name="workingHours" label="Çalışma saatleri" rows={2} errors={e} />
             </div>
           </Card>
-          <Card title="Sosyal medya" description="Boş bırakılan hesaplar footer'da gösterilmez.">
+          <Card
+            title="Sosyal medya"
+            description="Tam adres, instagram.com/hesabiniz ya da @hesabiniz yazabilirsiniz. Boş bırakılan hesaplar footer'da gösterilmez."
+          >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Text s={s} name="instagram" label="Instagram" placeholder="https://instagram.com/..." errors={e} />
+              <Text s={s} name="instagram" label="Instagram" placeholder="https://www.instagram.com/hesabiniz" errors={e} />
               <Text s={s} name="facebook" label="Facebook" placeholder="https://facebook.com/..." errors={e} />
               <Text s={s} name="tiktok" label="TikTok" placeholder="https://tiktok.com/@..." errors={e} />
               <Text s={s} name="youtube" label="YouTube" placeholder="https://youtube.com/@..." errors={e} />
@@ -426,19 +429,32 @@ export function TextsSettingsForm({ settings: s }: { settings: Settings }) {
 /* ---------------- Fiyat & kargo ---------------- */
 
 export function ShippingSettingsForm({ settings: s }: { settings: Settings }) {
-  const keys: SettingKey[] = ["cartDiscountPercent", "freeShippingThreshold", "shippingFee"];
+  const keys: SettingKey[] = ["cartDiscountPercent", "freeShippingThreshold", "shippingFee", "lowStockThreshold"];
   return (
     <SettingsForm keys={keys}>
       {(e) => (
-        <Card title="Fiyatlandırma ve kargo">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Sepet indirimi (%)" hint="Tüm ürünlerde 'Sepetteki Fiyat' olarak gösterilir. 0 = kapalı." error={e.cartDiscountPercent}>
-              <input name="cartDiscountPercent" type="number" min={0} max={90} defaultValue={s.cartDiscountPercent} className={inputCls} />
-            </Field>
-            <Money s={s} name="freeShippingThreshold" label="Ücretsiz kargo alt limiti (TL)" hint="0 = her zaman ücretsiz." errors={e} />
-            <Money s={s} name="shippingFee" label="Kargo ücreti (TL)" errors={e} />
-          </div>
-        </Card>
+        <>
+          <Card title="Fiyatlandırma ve kargo">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Sepet indirimi (%)" hint="Tüm ürünlerde 'Sepetteki Fiyat' olarak gösterilir. 0 = kapalı." error={e.cartDiscountPercent}>
+                <input name="cartDiscountPercent" type="number" min={0} max={90} defaultValue={s.cartDiscountPercent} className={inputCls} />
+              </Field>
+              <Money s={s} name="freeShippingThreshold" label="Ücretsiz kargo alt limiti (TL)" hint="0 = her zaman ücretsiz." errors={e} />
+              <Money s={s} name="shippingFee" label="Kargo ücreti (TL)" errors={e} />
+            </div>
+          </Card>
+          <Card title="Stok uyarısı">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field
+                label="Son ürün uyarısı eşiği"
+                hint={'Seçilen bedenin stoğu bu adet ve altındaysa ürün sayfasında "Son X ürün!" yazar. 0 = kapalı.'}
+                error={e.lowStockThreshold}
+              >
+                <input name="lowStockThreshold" type="number" min={0} max={50} defaultValue={s.lowStockThreshold} className={inputCls} />
+              </Field>
+            </div>
+          </Card>
+        </>
       )}
     </SettingsForm>
   );

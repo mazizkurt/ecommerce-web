@@ -57,6 +57,8 @@ export const DEFAULT_SETTINGS = {
   freeShippingThreshold: "250000",
   shippingFee: "8990",
   codFee: "3000",
+  // Ürün sayfasında "Son X ürün!" uyarısı bu adet ve altında gösterilir; 0 = kapalı.
+  lowStockThreshold: "1",
 
   // Ödeme (yerleşik yöntemler; online sağlayıcılar payment_providers tablosunda)
   paymentBankTransfer: "1",
@@ -75,7 +77,7 @@ export const DEFAULT_SETTINGS = {
   phone: "0 500 000 00 00",
   email: "info@example.com",
   workingHours: "Hafta içi 09:00 - 17:00, Cumartesi 10:00 - 13:00 saatleri arasında ulaşabilirsiniz.",
-  instagram: "https://www.instagram.com/",
+  instagram: "",
   facebook: "",
   tiktok: "",
   youtube: "",

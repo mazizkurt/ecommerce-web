@@ -252,6 +252,7 @@ export function BuyBox({
   reviewCount,
   whatsapp,
   whatsappMessage,
+  lowStockThreshold,
   siteUrl,
   colorName,
   colors,
@@ -262,6 +263,7 @@ export function BuyBox({
   reviewCount: number;
   whatsapp: string;
   whatsappMessage: string;
+  lowStockThreshold: number;
   siteUrl: string;
   colorName: string;
   colors: ColorOption[];
@@ -412,7 +414,7 @@ export function BuyBox({
             </button>
           ))}
         </div>
-        {variant && variant.stock <= 3 && <p className="mt-2 text-[13px] text-red-600">Son {variant.stock} ürün!</p>}
+        {variant && variant.stock > 0 && variant.stock <= lowStockThreshold && <p className="mt-2 text-[13px] text-red-600">Son {variant.stock} ürün!</p>}
         {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
       </div>
 

@@ -27,6 +27,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
           logoHeight: Number(settings.logoHeight) || 44,
         }}
         whatsapp={settings.whatsapp}
+        instagram={settings.instagram}
       />
       <main className="flex-1">{children}</main>
       <div className="pb-[60px] lg:pb-0">

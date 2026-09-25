@@ -546,6 +546,7 @@ const INT_RANGES: Partial<Record<SettingKey, [number, number]>> = {
   newCount: [1, 48],
   trendCount: [1, 48],
   smtpPort: [1, 65535],
+  lowStockThreshold: [0, 50],
 };
 const CHOICES: Partial<Record<SettingKey, readonly string[]>> = {
   emailProvider: ["none", "resend", "smtp"],
@@ -554,6 +555,23 @@ const CHOICES: Partial<Record<SettingKey, readonly string[]>> = {
 };
 const EMAIL_KEYS: SettingKey[] = ["emailFromAddress", "adminNotifyEmail"];
 const URL_KEYS: SettingKey[] = ["siteUrl", "instagram", "facebook", "tiktok", "youtube", "twitter", "pinterest"];
+/** Sosyal hesaplarda "@kullanici", "kullanici" veya "instagram.com/kullanici" girişleri tam adrese çevrilir. */
+const SOCIAL_BASES: Partial<Record<SettingKey, string>> = {
+  instagram: "https://www.instagram.com/",
+  facebook: "https://www.facebook.com/",
+  tiktok: "https://www.tiktok.com/@",
+  youtube: "https://www.youtube.com/@",
+  twitter: "https://x.com/",
+  pinterest: "https://www.pinterest.com/",
+};
+
+function normalizeSocialUrl(key: SettingKey, value: string) {
+  const base = SOCIAL_BASES[key];
+  if (!base || !value || /^https?:\/\//i.test(value)) return value;
+  if (/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(value)) return `https://${value}`;
+  const handle = value.replace(/^@+/, "");
+  return /^[\w.-]+$/.test(handle) ? base + handle : value;
+}
 
 function validateSetting(key: SettingKey, raw: string): { value: string } | { error: string } {
   let value = raw;
@@ -578,6 +596,7 @@ function validateSetting(key: SettingKey, raw: string): { value: string } | { er
     return { error: "Geçerli bir e-posta adresi girin." };
   }
   if (URL_KEYS.includes(key) && value) {
+    value = normalizeSocialUrl(key, value);
     if (!/^https?:\/\/\S+$/i.test(value)) return { error: "Adres http:// veya https:// ile başlamalı." };
     if (key === "siteUrl") value = value.replace(/\/+$/, "");
   }
