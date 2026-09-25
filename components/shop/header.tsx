@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Form from "next/form";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { InstagramIcon, WhatsAppIcon } from "@/components/icons";
 import { cartCount, useCartItems } from "@/lib/cart-store";
@@ -75,6 +76,13 @@ function CountBadge({ count, className }: { count: number; className?: string })
 export function Header({ menu, branding, whatsapp, instagram }: HeaderProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Header sayfalar arasında korunur; başka sayfaya geçildiğinde arama kutusu kapanmalı.
+  const pathname = usePathname();
+  const [lastPath, setLastPath] = useState(pathname);
+  if (pathname !== lastPath) {
+    setLastPath(pathname);
+    setSearchOpen(false);
+  }
   const items = useCartItems();
   const count = cartCount(items);
   const { openCart } = useCartUI();
