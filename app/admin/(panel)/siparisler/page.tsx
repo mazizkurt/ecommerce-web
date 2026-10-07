@@ -1,4 +1,5 @@
-import { and, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, or, type SQL } from "drizzle-orm";
+import { containsTr } from "@/lib/search";
 import { Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -32,14 +33,13 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/sip
   const conds: SQL[] = [];
   if (status) conds.push(eq(orders.status, status));
   if (q) {
-    const term = `%${q}%`;
     const digits = q.replace(/\D/g, "");
     conds.push(
       or(
-        ilike(orders.firstName, term),
-        ilike(orders.lastName, term),
-        ilike(orders.email, term),
-        ilike(orders.phone, term),
+        containsTr(orders.firstName, q),
+        containsTr(orders.lastName, q),
+        containsTr(orders.email, q),
+        containsTr(orders.phone, q),
         ...(digits && digits.length <= 9 ? [eq(orders.orderNo, Number(digits))] : []),
       )!,
     );

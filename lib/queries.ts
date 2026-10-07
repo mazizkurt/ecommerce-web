@@ -7,7 +7,6 @@ import {
   gt,
   gte,
   inArray,
-  ilike,
   lte,
   ne,
   or,
@@ -16,6 +15,7 @@ import {
 } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "./db";
+import { containsTr, foldTr } from "./search";
 import {
   type BannerPlacement,
   banners,
@@ -140,7 +140,18 @@ export type ProductFilter = {
   perPage?: number;
 };
 
-function buildWhere(f: ProductFilter) {
+/** Adı aramayla eşleşen kategoriler ve alt kategorileri ("takım" → Takım kategorisi). */
+async function searchCategoryIds(q: string) {
+  const term = foldTr(q.trim());
+  if (term.length < 2) return [];
+  const all = await getAllCategories();
+  const ids = all
+    .filter((c) => foldTr(c.name).includes(term))
+    .flatMap((c) => descendantIds(all, c.id));
+  return [...new Set(ids)];
+}
+
+function buildWhere(f: ProductFilter, qCategoryIds: number[] = []) {
   const conds: SQL[] = [eq(products.isActive, true)];
   if (f.categoryIds?.length) {
     conds.push(
@@ -154,8 +165,24 @@ function buildWhere(f: ProductFilter) {
     );
   }
   if (f.q) {
-    const term = `%${f.q}%`;
-    conds.push(or(ilike(products.name, term), ilike(products.code, term))!);
+    conds.push(
+      or(
+        containsTr(products.name, f.q),
+        containsTr(products.code, f.q),
+        // Kategori adıyla arayanlar o kategorideki tüm ürünleri görsün.
+        ...(qCategoryIds.length
+          ? [
+              inArray(
+                products.id,
+                db
+                  .select({ id: productCategories.productId })
+                  .from(productCategories)
+                  .where(inArray(productCategories.categoryId, qCategoryIds)),
+              ),
+            ]
+          : []),
+      )!,
+    );
   }
   if (f.sizes?.length) {
     conds.push(
@@ -200,7 +227,7 @@ function orderFor(sort: ProductSort | undefined) {
 }
 
 export async function getProducts(f: ProductFilter = {}) {
-  const where = buildWhere(f);
+  const where = buildWhere(f, f.q ? await searchCategoryIds(f.q) : []);
   const perPage = f.perPage ?? 24;
   const page = Math.max(1, f.page ?? 1);
   const [rows, [{ total }]] = await Promise.all([

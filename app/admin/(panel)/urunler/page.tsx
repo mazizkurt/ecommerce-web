@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
-import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { containsTr } from "@/lib/search";
 import { Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -28,7 +29,7 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/u
   const page = Math.max(1, Number(one(sp.sayfa)) || 1);
 
   const conds: SQL[] = [];
-  if (q) conds.push(or(ilike(products.name, `%${q}%`), ilike(products.code, `%${q}%`))!);
+  if (q) conds.push(or(containsTr(products.name, q), containsTr(products.code, q))!);
   if (categoryId) {
     conds.push(
       inArray(
