@@ -59,22 +59,13 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
           className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto"
         >
           {images.map((src, i) => (
-            <button
+            <HoverZoomSlide
               key={src}
-              type="button"
-              onClick={() => setZoom(i)}
-              aria-label="Görseli büyüt"
-              className="relative aspect-[2/3] w-full shrink-0 cursor-zoom-in snap-center bg-soft"
-            >
-              <Image
-                src={src}
-                alt={i === 0 ? name : ""}
-                fill
-                priority={i === 0}
-                sizes="(min-width: 1024px) 55vw, 100vw"
-                className="object-cover"
-              />
-            </button>
+              src={src}
+              alt={i === 0 ? name : ""}
+              priority={i === 0}
+              onOpen={() => setZoom(i)}
+            />
           ))}
         </div>
         {count > 1 && (
@@ -116,6 +107,80 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
         <Lightbox images={images} start={zoom} name={name} onClose={() => setZoom(null)} />
       )}
     </div>
+  );
+}
+
+/** Fareyle üzerine gelinince görselin bu kadar katı büyütülür. */
+const HOVER_ZOOM = 2.5;
+
+/**
+ * Galerideki tek görsel. Fareyle üzerine gelince imlecin olduğu noktayı
+ * mercek gibi yakından gösterir; tıklayınca tam ekran görüntüleyici açılır.
+ * Dokunmatik ekranlarda büyütme yok, kaydırma eskisi gibi çalışır.
+ */
+function HoverZoomSlide({
+  src,
+  alt,
+  priority,
+  onOpen,
+}: {
+  src: string;
+  alt: string;
+  priority: boolean;
+  onOpen: () => void;
+}) {
+  const layer = useRef<HTMLSpanElement>(null);
+  const [active, setActive] = useState(false);
+  // Yakın plan için yüksek çözünürlüklü kopya; yalnızca ilk kez üzerine gelinince indirilir.
+  const [hiRes, setHiRes] = useState<"off" | "loading" | "ready">("off");
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      onPointerMove={(e) => {
+        if (e.pointerType !== "mouse") return;
+        const r = e.currentTarget.getBoundingClientRect();
+        const x = ((e.clientX - r.left) / r.width) * 100;
+        const y = ((e.clientY - r.top) / r.height) * 100;
+        // Her harekette yeniden render olmasın diye doğrudan DOM'a yazılır.
+        if (layer.current) layer.current.style.transformOrigin = `${x}% ${y}%`;
+        if (!active) setActive(true);
+        if (hiRes === "off") setHiRes("loading");
+      }}
+      onPointerLeave={() => setActive(false)}
+      aria-label="Görseli büyüt"
+      className="relative aspect-[2/3] w-full shrink-0 cursor-zoom-in snap-center overflow-hidden bg-soft"
+    >
+      <span
+        ref={layer}
+        className="absolute inset-0 transition-transform duration-300 ease-out motion-reduce:transition-none"
+        style={{ transform: active ? `scale(${HOVER_ZOOM})` : "scale(1)" }}
+      >
+        <Image
+          src={src}
+          alt={alt}
+          fill
+          priority={priority}
+          sizes="(min-width: 1024px) 55vw, 100vw"
+          className="object-cover"
+        />
+        {hiRes !== "off" && (
+          <Image
+            src={src}
+            alt=""
+            fill
+            quality={90}
+            sizes="(min-width: 1024px) 140vw, 250vw"
+            onLoad={() => setHiRes("ready")}
+            className={cn(
+              "object-cover transition-opacity duration-300",
+              hiRes === "ready" ? "opacity-100" : "opacity-0",
+            )}
+          />
+        )}
+      </span>
+    </button>
   );
 }
 
@@ -186,16 +251,23 @@ function Lightbox({
       >
         {images.map((src, i) => (
           // Görselin dışına (ya da üstüne) tıklayınca kapanır.
-          <div key={src} onClick={onClose} className="relative h-full w-full shrink-0 snap-center">
-            <Image
-              src={src}
-              alt={`${name} — ${i + 1}. görsel`}
-              fill
-              sizes="100vw"
-              quality={90}
-              priority={i === start}
-              className="object-contain p-3 md:p-10"
-            />
+          <div
+            key={src}
+            onClick={onClose}
+            className="flex h-full w-full shrink-0 snap-center items-center justify-center px-4 py-16 md:px-20"
+          >
+            {/* Ekranı kaplamasın: görsel ortada, sınırlı bir çerçeve içinde. */}
+            <div className="relative size-full max-h-[80vh] max-w-[560px]">
+              <Image
+                src={src}
+                alt={`${name} — ${i + 1}. görsel`}
+                fill
+                sizes="(min-width: 640px) 560px, 100vw"
+                quality={90}
+                priority={i === start}
+                className="object-contain"
+              />
+            </div>
           </div>
         ))}
       </div>
